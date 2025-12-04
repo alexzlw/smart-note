@@ -1,7 +1,34 @@
 import { GoogleGenAI, Type, Schema } from "@google/genai";
 import { AIAnalysisResult, AISimilarQuestionResult } from "../types";
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// Helper: Get API Key safely for Vite/Browser environment
+const getApiKey = () => {
+  // Try standard process.env (for Node/Next.js compatibility)
+  if (typeof process !== 'undefined' && process.env?.API_KEY) {
+    return process.env.API_KEY;
+  }
+  // Try Vite's import.meta.env (Standard for Vite apps)
+  // @ts-ignore
+  if (import.meta.env?.VITE_API_KEY) {
+    // @ts-ignore
+    return import.meta.env.VITE_API_KEY;
+  }
+  return '';
+};
+
+// Initialize client lazily to prevent top-level crashes
+let aiInstance: GoogleGenAI | null = null;
+
+const getAI = () => {
+  if (!aiInstance) {
+    const apiKey = getApiKey();
+    if (!apiKey) {
+      console.warn("Gemini API Key is missing. Features will not work. Please check your Vercel Environment Variables.");
+    }
+    aiInstance = new GoogleGenAI({ apiKey: apiKey });
+  }
+  return aiInstance;
+};
 
 // Helper: Wait function
 const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
@@ -60,6 +87,7 @@ export const fileToGenerativePart = async (file: File): Promise<string> => {
 
 export const analyzeImage = async (dataUrlOrBase64: string, userHint: string): Promise<AIAnalysisResult> => {
   const modelId = "gemini-2.5-flash"; 
+  const ai = getAI();
   
   // 1. Process the image data
   let mimeType = 'image/jpeg';
@@ -130,6 +158,7 @@ export const analyzeImage = async (dataUrlOrBase64: string, userHint: string): P
 
 export const generateSimilarQuestion = async (originalQuestion: string, originalAnalysis: string): Promise<AISimilarQuestionResult> => {
     const modelId = "gemini-2.5-flash";
+    const ai = getAI();
 
     const responseSchema: Schema = {
         type: Type.OBJECT,
