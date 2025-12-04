@@ -1,0 +1,5 @@
+{
+  "name": "スマート間違いノート (Smart Error Notebook)",
+  "description": "学生のためのインテリジェントな間違い追跡アプリ。間違った答えの写真をアップロードし、AIに原因を分析させ、解決策を提供し、類似の練習問題を生成させます。",
+  "requestFramePermissions": []
+}
