@@ -1,4 +1,3 @@
-
 import { GoogleGenAI, Type, Schema, HarmCategory, HarmBlockThreshold } from "@google/genai";
 import { AIAnalysisResult, AISimilarQuestionResult, Language } from "../types";
 
@@ -50,15 +49,12 @@ async function withRetry<T>(operation: () => Promise<T>, retries = 3, initialDel
       // --- Error Analysis ---
       
       // 1. Check for API Restriction Error (User needs to config Console)
-      // code: 403, reason: "API_KEY_SERVICE_BLOCKED"
       if (error.status === 403 || (error.message && error.message.includes("API_KEY_SERVICE_BLOCKED"))) {
          console.error("API Restriction Error detected.");
-         // Throw immediately, no retry
          throw new Error("Google Cloud Config Error: This API Key is restricted. Go to Console > Credentials > Edit API Key > API Restrictions, and add 'Generative Language API' to the list.");
       }
 
       // 2. Check for Service Disabled Error (User needs to enable API)
-      // reason: "SERVICE_DISABLED"
       if (error.message && error.message.includes("SERVICE_DISABLED")) {
           console.error("Service Disabled Error detected.");
           const projectId = error.message.match(/project (\d+)/)?.[1];
@@ -100,8 +96,6 @@ function safeJsonParse<T>(text: string): T {
 // Helper to fetch image from URL and convert to Base64
 async function urlToData(url: string): Promise<{ mimeType: string, base64Data: string }> {
   try {
-    // Note: This fetch requires CORS to be configured on the Firebase Storage bucket.
-    // Standard fetch from browser to storage bucket.
     const response = await fetch(url, { mode: 'cors' });
     if (!response.ok) throw new Error(`Failed to fetch image: ${response.statusText}`);
     
@@ -110,7 +104,6 @@ async function urlToData(url: string): Promise<{ mimeType: string, base64Data: s
       const reader = new FileReader();
       reader.onloadend = () => {
         const base64String = reader.result as string;
-        // base64String looks like "data:image/jpeg;base64,/9j/4AAQSk..."
         const parts = base64String.split('base64,');
         const mimeMatch = parts[0].match(/data:(.*?);/);
         resolve({
@@ -123,20 +116,18 @@ async function urlToData(url: string): Promise<{ mimeType: string, base64Data: s
     });
   } catch (error) {
     console.error("Error converting URL to base64:", error);
-    // Provide a helpful error message about CORS
     throw new Error("Failed to download image from cloud. If you are using Firebase Storage, please ensure CORS is configured on your bucket.");
   }
 }
 
 export const analyzeImage = async (dataUrlOrBase64: string, userHint: string, language: Language = 'ja'): Promise<AIAnalysisResult> => {
+  // Switched to stable 2.5-flash to prevent MAX_TOKENS instability and thinking loops
   const modelId = "gemini-2.5-flash"; 
   const ai = getAI();
   
-  // 1. Process the image data
   let mimeType = 'image/jpeg';
   let base64Data = '';
 
-  // Check if input is a URL (http/https)
   if (dataUrlOrBase64.startsWith('http')) {
       try {
           const imageData = await urlToData(dataUrlOrBase64);
@@ -147,7 +138,6 @@ export const analyzeImage = async (dataUrlOrBase64: string, userHint: string, la
           throw new Error(e.message || "Failed to download image for analysis");
       }
   } 
-  // Check if input is Data URL
   else if (dataUrlOrBase64.includes('base64,')) {
       const parts = dataUrlOrBase64.split('base64,');
       base64Data = parts[1];
@@ -156,12 +146,10 @@ export const analyzeImage = async (dataUrlOrBase64: string, userHint: string, la
           mimeType = mimeMatch[1];
       }
   } 
-  // Assume raw base64
   else {
       base64Data = dataUrlOrBase64;
   }
 
-  // Define language specifics
   const langName = language === 'en' ? 'English' : language === 'zh' ? 'Chinese (Simplified)' : 'Japanese';
 
   const responseSchema: Schema = {
@@ -182,12 +170,12 @@ export const analyzeImage = async (dataUrlOrBase64: string, userHint: string, la
   };
 
   const prompt = `Analyze this homework or exam problem image. 
-  Output ALL responses in ${langName}.
+  Output ALL responses in ${langName}. Be concise and to the point.
   1. Transcribe the question accurately.
   2. Solve the problem thoroughly step-by-step.
   3. Explain core concepts and analyze potential mistakes.
   4. Suggest tags.
-  5. If it involves geometry or graphs, provide simple lightweight SVG code to visualize it.
+  5. If it involves geometry or graphs, provide simple lightweight SVG code.
   ${userHint ? `User Note: ${userHint}` : ''}`;
 
   return withRetry(async () => {
@@ -205,19 +193,17 @@ export const analyzeImage = async (dataUrlOrBase64: string, userHint: string, la
           responseSchema: responseSchema,
           temperature: 0.4,
           maxOutputTokens: 8192,
-          // Force safety settings to 'BLOCK_NONE' using string casting to ensure strict overriding of defaults
           safetySettings: [
-             { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: 'BLOCK_NONE' as any },
-             { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: 'BLOCK_NONE' as any },
-             { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: 'BLOCK_NONE' as any },
-             { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: 'BLOCK_NONE' as any },
+             { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
+             { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
+             { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE },
+             { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE },
           ]
         }
       });
 
       if (response.text) {
         const result = safeJsonParse<AIAnalysisResult>(response.text);
-        // Inject token usage
         if (response.usageMetadata) {
             result.tokenUsage = {
                 promptTokenCount: response.usageMetadata.promptTokenCount || 0,
@@ -230,7 +216,7 @@ export const analyzeImage = async (dataUrlOrBase64: string, userHint: string, la
       
       console.error("Empty Response", JSON.stringify(response, null, 2));
       const finishReason = response.candidates?.[0]?.finishReason;
-      throw new Error(`No response text from Gemini. Reason: ${finishReason || 'Unknown'}. The model might have filtered the content.`);
+      throw new Error(`No response text from Gemini. Reason: ${finishReason || 'Unknown'}.`);
     } catch (error) {
       console.error("Gemini Analysis Error:", error);
       throw error;
@@ -239,7 +225,7 @@ export const analyzeImage = async (dataUrlOrBase64: string, userHint: string, la
 };
 
 export const generateSimilarQuestion = async (originalQuestion: string, originalAnalysis: string, language: Language = 'ja'): Promise<AISimilarQuestionResult> => {
-    const modelId = "gemini-2.5-flash";
+    const modelId = "gemini-2.5-flash"; // Switched to stable model
     const ai = getAI();
 
     const langName = language === 'en' ? 'English' : language === 'zh' ? 'Chinese (Simplified)' : 'Japanese';
@@ -255,7 +241,7 @@ export const generateSimilarQuestion = async (originalQuestion: string, original
     };
 
     const prompt = `Based on Original Question: "${originalQuestion}" and Analysis: "${originalAnalysis || ''}", create a NEW similar practice problem to test understanding. 
-    Output ALL responses in ${langName}.
+    Output ALL responses in ${langName}. Be concise.
     Change numbers or context but test the same concept. 
     Include SVG code if geometry/graphs are involved.`;
 
@@ -268,12 +254,11 @@ export const generateSimilarQuestion = async (originalQuestion: string, original
                     responseMimeType: "application/json",
                     responseSchema: responseSchema,
                     maxOutputTokens: 8192,
-                    // Force safety settings to 'BLOCK_NONE' using string casting
                     safetySettings: [
-                         { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: 'BLOCK_NONE' as any },
-                         { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: 'BLOCK_NONE' as any },
-                         { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: 'BLOCK_NONE' as any },
-                         { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: 'BLOCK_NONE' as any },
+                        { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
+                        { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
+                        { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE },
+                        { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE },
                     ]
                 }
             });
