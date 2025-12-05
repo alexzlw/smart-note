@@ -412,12 +412,19 @@ const ReviewCard: React.FC<ReviewCardProps> = ({ item, onUpdateMastery, onUpdate
             <button
                 onClick={handleAnalyze}
                 disabled={analyzing}
-                className="flex-1 py-3 px-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-sm shadow-lg shadow-indigo-200 flex items-center justify-center gap-2 transition-all hover:scale-[1.02] active:scale-95 disabled:opacity-70 disabled:cursor-wait"
+                className={`flex-1 py-3 px-4 rounded-xl font-bold text-sm shadow-lg flex items-center justify-center gap-2 transition-all hover:scale-[1.02] active:scale-95 disabled:opacity-70 disabled:cursor-wait ${
+                    hasAnalysis 
+                    ? 'bg-white text-indigo-600 border border-indigo-200 shadow-indigo-50 hover:bg-indigo-50' 
+                    : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-200'
+                }`}
             >
                  {analyzing ? (
                     <><Loader2 size={18} className="animate-spin" /> {t('analyzing', language)}</>
                  ) : (
-                    <><Sparkles size={18} /> {t('create_ai_analysis', language)}</>
+                    <>
+                        <Sparkles size={18} /> 
+                        {hasAnalysis ? t('regenerate_ai', language) : t('create_ai_analysis', language)}
+                    </>
                  )}
             </button>
         </div>

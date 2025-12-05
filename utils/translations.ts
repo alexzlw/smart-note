@@ -14,7 +14,7 @@ type TranslationKey =
   | 'reflection_title' | 'reflection_placeholder' | 'text_mode' | 'draw_mode'
   | 'tap_to_edit' | 'add_handwriting' | 'correct_answer_label' | 'ai_solution'
   | 'analysis_points' | 'similar_question' | 'close' | 'generate_similar'
-  | 'creating' | 'show_answer' | 'hide' | 'create_ai_analysis' | 'analyzing'
+  | 'creating' | 'show_answer' | 'hide' | 'create_ai_analysis' | 'regenerate_ai' | 'analyzing'
   | 'delete' | 'delete_confirm' | 'quota_error' | 'analysis_error'
   | 'language_settings' | 'data_management' | 'export_backup' | 'export_desc'
   | 'download_json' | 'import_restore' | 'import_desc' | 'select_file'
@@ -77,6 +77,7 @@ const resources: Record<Language, Record<TranslationKey, string>> = {
     show_answer: '答えを見る',
     hide: '隠す',
     create_ai_analysis: 'AI解説を作成',
+    regenerate_ai: 'AI解説を再生成',
     analyzing: '解析中...',
     delete: '削除',
     delete_confirm: 'この間違いノートを削除しますか？\n（この操作は元に戻せません）',
@@ -154,6 +155,7 @@ const resources: Record<Language, Record<TranslationKey, string>> = {
     show_answer: 'Show Answer',
     hide: 'Hide Answer',
     create_ai_analysis: 'Get AI Analysis',
+    regenerate_ai: 'Regenerate Analysis',
     analyzing: 'Analyzing...',
     delete: 'Delete',
     delete_confirm: 'Are you sure you want to delete this note?\n(This cannot be undone)',
@@ -231,6 +233,7 @@ const resources: Record<Language, Record<TranslationKey, string>> = {
     show_answer: '查看答案',
     hide: '隐藏答案',
     create_ai_analysis: '生成 AI 解析',
+    regenerate_ai: '重新生成解析',
     analyzing: '解析中...',
     delete: '删除',
     delete_confirm: '确定要删除这条错题吗？\n（此操作无法撤销）',
