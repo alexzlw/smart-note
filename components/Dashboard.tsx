@@ -1,19 +1,24 @@
+
 import React from 'react';
-import { MistakeItem } from '../types';
+import { MistakeItem, Language } from '../types';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
 import { BookOpen, CheckCircle, AlertCircle, TrendingUp } from 'lucide-react';
+import { t, getSubjectLabel, getMasteryLabel } from '../utils/translations';
 
 interface DashboardProps {
   mistakes: MistakeItem[];
+  language: Language;
 }
 
 const COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
 
-const Dashboard: React.FC<DashboardProps> = ({ mistakes }) => {
+const Dashboard: React.FC<DashboardProps> = ({ mistakes, language }) => {
   
   // Prepare data for Pie Chart (Subjects)
   const subjectCounts = mistakes.reduce((acc, curr) => {
-    acc[curr.subject] = (acc[curr.subject] || 0) + 1;
+    // Map the stored subject key to the translated label for aggregation
+    const label = getSubjectLabel(curr.subject, language);
+    acc[label] = (acc[label] || 0) + 1;
     return acc;
   }, {} as Record<string, number>);
 
@@ -24,7 +29,8 @@ const Dashboard: React.FC<DashboardProps> = ({ mistakes }) => {
 
   // Prepare data for Mastery Bar Chart
   const masteryCounts = mistakes.reduce((acc, curr) => {
-    acc[curr.mastery] = (acc[curr.mastery] || 0) + 1;
+    const label = getMasteryLabel(curr.mastery, language);
+    acc[label] = (acc[label] || 0) + 1;
     return acc;
   }, {} as Record<string, number>);
 
@@ -52,29 +58,29 @@ const Dashboard: React.FC<DashboardProps> = ({ mistakes }) => {
   return (
     <div className="space-y-8 animate-fade-in">
       <div>
-        <h2 className="text-3xl font-bold text-slate-900 tracking-tight">学習データの分析</h2>
-        <p className="text-slate-500 mt-2 text-lg">学習の進捗状況を一目で確認できます。</p>
+        <h2 className="text-3xl font-bold text-slate-900 tracking-tight">{t('stats_analysis', language)}</h2>
+        <p className="text-slate-500 mt-2 text-lg">{t('stats_desc', language)}</p>
       </div>
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <StatCard 
             icon={BookOpen} 
-            label="間違い総数" 
+            label={t('total_mistakes', language)}
             value={totalMistakes} 
             colorClass="text-indigo-600" 
             bgClass="bg-indigo-50" 
         />
         <StatCard 
             icon={CheckCircle} 
-            label="完了 (習得済み)" 
+            label={t('mastered', language)} 
             value={masteredCount} 
             colorClass="text-emerald-600" 
             bgClass="bg-emerald-50" 
         />
         <StatCard 
             icon={AlertCircle} 
-            label="復習が必要" 
+            label={t('review_needed', language)} 
             value={reviewingCount} 
             colorClass="text-amber-600" 
             bgClass="bg-amber-50" 
@@ -86,7 +92,7 @@ const Dashboard: React.FC<DashboardProps> = ({ mistakes }) => {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-100">
             <div className="flex items-center justify-between mb-8">
-                <h3 className="text-lg font-bold text-slate-800">科目別内訳</h3>
+                <h3 className="text-lg font-bold text-slate-800">{t('subject_breakdown', language)}</h3>
             </div>
             <div className="h-80">
                 <ResponsiveContainer width="100%" height="100%">
@@ -126,7 +132,7 @@ const Dashboard: React.FC<DashboardProps> = ({ mistakes }) => {
 
           <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-100">
              <div className="flex items-center justify-between mb-8">
-                <h3 className="text-lg font-bold text-slate-800">習得状況</h3>
+                <h3 className="text-lg font-bold text-slate-800">{t('mastery_status', language)}</h3>
             </div>
             <div className="h-80">
                 <ResponsiveContainer width="100%" height="100%">
@@ -161,7 +167,7 @@ const Dashboard: React.FC<DashboardProps> = ({ mistakes }) => {
            <div className="bg-slate-50 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
                <TrendingUp className="text-slate-300" size={32} />
            </div>
-          <p className="text-slate-400 font-medium">間違いを追加して、分析を開始しましょう！</p>
+          <p className="text-slate-400 font-medium">{t('no_mistakes_yet', language)}</p>
         </div>
       )}
     </div>

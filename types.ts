@@ -1,3 +1,4 @@
+
 export enum Subject {
   KOKUGO = '国語',
   SANSU = '算数',
@@ -11,6 +12,8 @@ export enum MasteryLevel {
   REVIEWING = '復習中', // Looked at it a few times
   MASTERED = '完了'   // Confident
 }
+
+export type Language = 'ja' | 'en' | 'zh';
 
 export interface MistakeItem {
   id: string;

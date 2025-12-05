@@ -1,5 +1,6 @@
+
 import { GoogleGenAI, Type, Schema } from "@google/genai";
-import { AIAnalysisResult, AISimilarQuestionResult } from "../types";
+import { AIAnalysisResult, AISimilarQuestionResult, Language } from "../types";
 
 // Helper: Get API Key safely for Vite/Browser environment
 const getApiKey = () => {
@@ -85,7 +86,7 @@ export const fileToGenerativePart = async (file: File): Promise<string> => {
   });
 };
 
-export const analyzeImage = async (dataUrlOrBase64: string, userHint: string): Promise<AIAnalysisResult> => {
+export const analyzeImage = async (dataUrlOrBase64: string, userHint: string, language: Language = 'ja'): Promise<AIAnalysisResult> => {
   const modelId = "gemini-2.5-flash"; 
   const ai = getAI();
   
@@ -102,30 +103,34 @@ export const analyzeImage = async (dataUrlOrBase64: string, userHint: string): P
       }
   }
 
+  // Define language specifics
+  const langName = language === 'en' ? 'English' : language === 'zh' ? 'Chinese (Simplified)' : 'Japanese';
+
   const responseSchema: Schema = {
     type: Type.OBJECT,
     properties: {
-      questionText: { type: Type.STRING, description: "画像から転写された質問のテキスト。" },
-      solution: { type: Type.STRING, description: "問題に対する段階的な正しい解決策。" },
-      analysis: { type: Type.STRING, description: "なぜ学生が間違えた可能性があるかの分析と、関連する重要な概念。" },
+      questionText: { type: Type.STRING, description: "Transcription of the question." },
+      solution: { type: Type.STRING, description: "Step-by-step correct solution." },
+      analysis: { type: Type.STRING, description: "Analysis of why the student might have made a mistake and key concepts." },
       tags: { 
         type: Type.ARRAY, 
         items: { type: Type.STRING },
-        description: "この質問に関連する3〜5個の短いキーワード。" 
+        description: "3-5 short keywords related to this question." 
       },
-      suggestedSubject: { type: Type.STRING, description: "学術的な科目 (国語, 算数, 理科, 社会, その他)." },
-      svgDiagram: { type: Type.STRING, description: "幾何学的な図やグラフが必要な場合、説明を助けるためのSVGコード（<svg>...</svg>）。複雑なパスデータは避け、簡潔な図形プリミティブを使用してください。図が不要な場合は空文字列。" }
+      suggestedSubject: { type: Type.STRING, description: "Academic subject (Math, Science, etc)." },
+      svgDiagram: { type: Type.STRING, description: "SVG code if a diagram is helpful. Empty string if not needed." }
     },
     required: ["questionText", "solution", "analysis", "tags", "suggestedSubject"]
   };
 
-  const prompt = `この宿題や試験の問題の画像を分析してください。日本語で出力してください。
-  1. 問題文を正確に書き起こしてください。
-  2. 問題を徹底的に解いてください。
-  3. 核となる概念を説明してください。
-  4. タグを提案してください。
-  5. もし幾何学の問題やグラフを含む問題であれば、説明を助けるためのシンプルで軽量なSVGコードを作成してください。
-  ${userHint ? `ユーザーメモ: ${userHint}` : ''}`;
+  const prompt = `Analyze this homework or exam problem image. 
+  Output ALL responses in ${langName}.
+  1. Transcribe the question accurately.
+  2. Solve the problem thoroughly step-by-step.
+  3. Explain core concepts and analyze potential mistakes.
+  4. Suggest tags.
+  5. If it involves geometry or graphs, provide simple lightweight SVG code to visualize it.
+  ${userHint ? `User Note: ${userHint}` : ''}`;
 
   return withRetry(async () => {
     try {
@@ -141,7 +146,7 @@ export const analyzeImage = async (dataUrlOrBase64: string, userHint: string): P
           responseMimeType: "application/json",
           responseSchema: responseSchema,
           temperature: 0.4,
-          maxOutputTokens: 8192 // Ensure enough tokens for SVG + Text
+          maxOutputTokens: 8192 
         }
       });
 
@@ -156,21 +161,26 @@ export const analyzeImage = async (dataUrlOrBase64: string, userHint: string): P
   });
 };
 
-export const generateSimilarQuestion = async (originalQuestion: string, originalAnalysis: string): Promise<AISimilarQuestionResult> => {
+export const generateSimilarQuestion = async (originalQuestion: string, originalAnalysis: string, language: Language = 'ja'): Promise<AISimilarQuestionResult> => {
     const modelId = "gemini-2.5-flash";
     const ai = getAI();
+
+    const langName = language === 'en' ? 'English' : language === 'zh' ? 'Chinese (Simplified)' : 'Japanese';
 
     const responseSchema: Schema = {
         type: Type.OBJECT,
         properties: {
-            question: { type: Type.STRING, description: "元の問題と論理/概念が似ている新しい練習問題。" },
-            answer: { type: Type.STRING, description: "新しい問題の正解と短い説明。" },
-            svgDiagram: { type: Type.STRING, description: "新しい問題に図が必要な場合のSVGコード。必要ない場合は空文字列。" }
+            question: { type: Type.STRING, description: "A new similar practice question." },
+            answer: { type: Type.STRING, description: "Correct answer and short explanation for the new question." },
+            svgDiagram: { type: Type.STRING, description: "SVG code for the new question if needed. Empty string if not." }
         },
         required: ["question", "answer"]
     };
 
-    const prompt = `元の質問：「${originalQuestion}」とその分析：「${originalAnalysis || ''}」に基づいて、学生の理解度を確認するための新しい類似の練習問題を作成してください。数字や文脈を変えても、同じ概念をテストするようにしてください。幾何学や関数の問題であれば、新しい問題に対応するシンプルで軽量なSVG図形コードも含めてください。日本語で出力してください。`;
+    const prompt = `Based on Original Question: "${originalQuestion}" and Analysis: "${originalAnalysis || ''}", create a NEW similar practice problem to test understanding. 
+    Output ALL responses in ${langName}.
+    Change numbers or context but test the same concept. 
+    Include SVG code if geometry/graphs are involved.`;
 
     return withRetry(async () => {
         try {
@@ -180,7 +190,7 @@ export const generateSimilarQuestion = async (originalQuestion: string, original
                 config: {
                     responseMimeType: "application/json",
                     responseSchema: responseSchema,
-                    maxOutputTokens: 8192 // Ensure enough tokens
+                    maxOutputTokens: 8192
                 }
             });
 

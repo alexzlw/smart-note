@@ -1,18 +1,21 @@
+
 import React, { useState, useRef, useEffect } from 'react';
-import { MistakeItem, MasteryLevel } from '../types';
+import { MistakeItem, MasteryLevel, Language } from '../types';
 import { Eye, EyeOff, BrainCircuit, RefreshCw, ChevronDown, Check, Sparkles, Loader2, BookCheck, Trash2, AlertTriangle, PenLine, Keyboard, PenTool, Pencil } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { generateSimilarQuestion, analyzeImage } from '../services/geminiService';
 import HandwritingCanvas from './HandwritingCanvas';
+import { t, getSubjectLabel, getMasteryLabel } from '../utils/translations';
 
 interface ReviewCardProps {
   item: MistakeItem;
   onUpdateMastery: (id: string, level: MasteryLevel) => void;
   onUpdateItem: (item: MistakeItem) => void;
   onDelete?: (id: string) => void;
+  language: Language;
 }
 
-const ReviewCard: React.FC<ReviewCardProps> = ({ item, onUpdateMastery, onUpdateItem, onDelete }) => {
+const ReviewCard: React.FC<ReviewCardProps> = ({ item, onUpdateMastery, onUpdateItem, onDelete, language }) => {
   const [showAnswer, setShowAnswer] = useState(false);
   const [similarQuestion, setSimilarQuestion] = useState<{q: string, a: string, svg?: string} | null>(null);
   const [generatingSimilar, setGeneratingSimilar] = useState(false);
@@ -31,11 +34,9 @@ const ReviewCard: React.FC<ReviewCardProps> = ({ item, onUpdateMastery, onUpdate
   const [isSwiped, setIsSwiped] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
 
-  // Minimum swipe distance
   const minSwipeDistance = 50;
 
   const onTouchStart = (e: React.TouchEvent) => {
-    // Don't trigger swipe if interacting with inner elements like canvas or buttons
     if ((e.target as HTMLElement).closest('button') || (e.target as HTMLElement).closest('canvas') || (e.target as HTMLElement).closest('textarea')) {
         return;
     }
@@ -63,12 +64,8 @@ const ReviewCard: React.FC<ReviewCardProps> = ({ item, onUpdateMastery, onUpdate
     }
   };
 
-  // Check if AI analysis has been done
   const hasAnalysis = item.aiSolution && item.aiSolution.length > 0;
-  // Check if user provided manual answer
   const hasUserAnswer = item.userCorrectAnswer && item.userCorrectAnswer.trim().length > 0;
-
-  // Show "Check Answer" functionality if we have EITHER AI analysis OR a user manual answer
   const canShowAnswer = hasAnalysis || hasUserAnswer;
 
   const handleAnalyze = async () => {
@@ -76,7 +73,8 @@ const ReviewCard: React.FC<ReviewCardProps> = ({ item, onUpdateMastery, onUpdate
     setAnalyzing(true);
     setErrorMsg(null);
     try {
-        const result = await analyzeImage(item.imageUrl, item.userNotes || "");
+        // Pass language to AI service
+        const result = await analyzeImage(item.imageUrl, item.userNotes || "", language);
         
         const updatedItem: MistakeItem = {
             ...item,
@@ -87,14 +85,14 @@ const ReviewCard: React.FC<ReviewCardProps> = ({ item, onUpdateMastery, onUpdate
             tags: result.tags,
         };
         onUpdateItem(updatedItem);
-        setShowAnswer(true); // Auto open
+        setShowAnswer(true); 
     } catch (e: any) {
         console.error(e);
         const msg = e.message || e.toString();
         if (msg.includes("quota") || msg.includes("429")) {
-            setErrorMsg("⚠️ 利用制限(Quota)に達しました。しばらく時間を置いてから再度お試しください。");
+            setErrorMsg(t('quota_error', language));
         } else {
-            setErrorMsg("⚠️ 分析に失敗しました。もう一度お試しください。");
+            setErrorMsg(t('analysis_error', language));
         }
     } finally {
         setAnalyzing(false);
@@ -104,10 +102,10 @@ const ReviewCard: React.FC<ReviewCardProps> = ({ item, onUpdateMastery, onUpdate
   const handleGenerateSimilar = async () => {
     setGeneratingSimilar(true);
     try {
-        const res = await generateSimilarQuestion(item.questionText, item.aiAnalysis || "");
+        const res = await generateSimilarQuestion(item.questionText, item.aiAnalysis || "", language);
         setSimilarQuestion({ q: res.question, a: res.answer, svg: res.svgDiagram });
     } catch (e) {
-        alert("類似問題の作成に失敗しました。");
+        alert("Error generating question.");
     } finally {
         setGeneratingSimilar(false);
     }
@@ -116,7 +114,7 @@ const ReviewCard: React.FC<ReviewCardProps> = ({ item, onUpdateMastery, onUpdate
   const handleDelete = () => {
       if(onDelete) {
           onDelete(item.id);
-          setIsSwiped(false); // Reset in case delete is cancelled
+          setIsSwiped(false); 
       }
   }
   
@@ -133,14 +131,13 @@ const ReviewCard: React.FC<ReviewCardProps> = ({ item, onUpdateMastery, onUpdate
   }
 
   const masteryConfig = {
-      [MasteryLevel.NEW]: { color: 'bg-blue-50 text-blue-700 border-blue-200', label: MasteryLevel.NEW },
-      [MasteryLevel.REVIEWING]: { color: 'bg-amber-50 text-amber-700 border-amber-200', label: MasteryLevel.REVIEWING },
-      [MasteryLevel.MASTERED]: { color: 'bg-emerald-50 text-emerald-700 border-emerald-200', label: MasteryLevel.MASTERED }
+      [MasteryLevel.NEW]: { color: 'bg-blue-50 text-blue-700 border-blue-200' },
+      [MasteryLevel.REVIEWING]: { color: 'bg-amber-50 text-amber-700 border-amber-200' },
+      [MasteryLevel.MASTERED]: { color: 'bg-emerald-50 text-emerald-700 border-emerald-200' }
   };
 
   const SvgRenderer = ({ svg }: { svg?: string }) => {
     if (!svg || !svg.includes('<svg')) return null;
-    // Basic cleanup of markdown block code if any remains
     const cleanSvg = svg.replace(/```xml|```svg|```/g, '').trim();
     return (
         <div 
@@ -158,24 +155,24 @@ const ReviewCard: React.FC<ReviewCardProps> = ({ item, onUpdateMastery, onUpdate
         onTouchMove={onTouchMove}
         onTouchEnd={onTouchEnd}
     >
-      {/* Background Delete Button (visible on swipe) */}
+      {/* Background Delete Button */}
       <div className={`absolute inset-y-0 right-0 w-24 bg-red-500 rounded-3xl flex items-center justify-center z-0 transition-opacity duration-200 ${isSwiped ? 'opacity-100' : 'opacity-0'}`}>
           <button onClick={handleDelete} className="text-white flex flex-col items-center">
               <Trash2 size={24} />
-              <span className="text-xs font-bold mt-1">削除</span>
+              <span className="text-xs font-bold mt-1">{t('delete', language)}</span>
           </button>
       </div>
 
       {/* Main Card Content */}
       <div 
         className={`bg-white rounded-3xl p-6 shadow-sm border border-slate-100 transition-transform duration-300 relative z-10 ${isSwiped ? '-translate-x-24' : 'translate-x-0'}`}
-        onClick={() => setIsSwiped(false)} // Reset swipe on click
+        onClick={() => setIsSwiped(false)} 
       >
         {/* Header */}
         <div className="flex justify-between items-start mb-4">
           <div className="flex gap-2">
             <span className={`px-3 py-1 rounded-full text-xs font-bold border ${masteryConfig[item.mastery].color}`}>
-              {item.subject}
+              {getSubjectLabel(item.subject, language)}
             </span>
             <span className="px-3 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-600 border border-slate-200">
                {new Date(item.createdAt).toLocaleDateString()}
@@ -184,7 +181,7 @@ const ReviewCard: React.FC<ReviewCardProps> = ({ item, onUpdateMastery, onUpdate
           
           <div className="relative group">
             <button className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold transition-colors ${masteryConfig[item.mastery].color}`}>
-              {masteryConfig[item.mastery].label} <ChevronDown size={14} />
+              {getMasteryLabel(item.mastery, language)} <ChevronDown size={14} />
             </button>
             <div className="absolute right-0 mt-2 w-32 bg-white rounded-xl shadow-lg border border-slate-100 p-1 hidden group-hover:block z-20">
               {Object.values(MasteryLevel).map(level => (
@@ -193,7 +190,7 @@ const ReviewCard: React.FC<ReviewCardProps> = ({ item, onUpdateMastery, onUpdate
                   onClick={() => onUpdateMastery(item.id, level)}
                   className={`w-full text-left px-3 py-2 rounded-lg text-xs font-medium hover:bg-slate-50 transition-colors ${item.mastery === level ? 'text-indigo-600' : 'text-slate-600'}`}
                 >
-                  {level}
+                  {getMasteryLabel(level, language)}
                 </button>
               ))}
             </div>
@@ -214,11 +211,11 @@ const ReviewCard: React.FC<ReviewCardProps> = ({ item, onUpdateMastery, onUpdate
           </div>
         )}
         
-        {/* Reflection / Self-Correction Section */}
+        {/* Reflection Section */}
         <div className="mb-6">
             <div className="flex items-center justify-between mb-2">
                  <h4 className="text-sm font-bold text-slate-700 flex items-center gap-2">
-                    <BrainCircuit size={16} className="text-indigo-500"/> 振り返り・反省メモ
+                    <BrainCircuit size={16} className="text-indigo-500"/> {t('reflection_title', language)}
                  </h4>
                  <div className="flex bg-slate-100 p-0.5 rounded-lg">
                      <button 
@@ -227,7 +224,7 @@ const ReviewCard: React.FC<ReviewCardProps> = ({ item, onUpdateMastery, onUpdate
                             setIsDrawingOpen(false);
                         }}
                         className={`p-1.5 rounded-md transition-all ${reflectionMode === 'text' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400'}`}
-                        title="テキスト入力"
+                        title={t('text_mode', language)}
                      >
                          <Keyboard size={16} />
                      </button>
@@ -237,7 +234,7 @@ const ReviewCard: React.FC<ReviewCardProps> = ({ item, onUpdateMastery, onUpdate
                              setIsDrawingOpen(true);
                          }}
                          className={`p-1.5 rounded-md transition-all ${reflectionMode === 'draw' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400'}`}
-                         title="手書き入力"
+                         title={t('draw_mode', language)}
                      >
                          <PenTool size={16} />
                      </button>
@@ -259,7 +256,7 @@ const ReviewCard: React.FC<ReviewCardProps> = ({ item, onUpdateMastery, onUpdate
                     <img src={reflectionImage} alt="Reflection" className="w-full h-auto bg-white" />
                     <div className="absolute inset-0 bg-black/0 group-hover:bg-black/5 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
                         <span className="bg-white/90 px-3 py-1 rounded-full text-xs font-bold text-slate-700 shadow-sm">
-                            タップして編集
+                            {t('tap_to_edit', language)}
                         </span>
                     </div>
                 </div>
@@ -269,14 +266,14 @@ const ReviewCard: React.FC<ReviewCardProps> = ({ item, onUpdateMastery, onUpdate
                     className="w-full h-24 border-2 border-dashed border-slate-200 rounded-xl flex flex-col items-center justify-center text-slate-400 hover:bg-slate-50 hover:border-indigo-300 transition-all gap-2"
                 >
                     <Pencil size={20} />
-                    <span className="text-sm font-medium">手書きメモを追加する</span>
+                    <span className="text-sm font-medium">{t('add_handwriting', language)}</span>
                 </button>
             ) : (
                 /* Text Mode */
                 <textarea 
                     className="w-full p-3 bg-indigo-50/30 border border-indigo-100 rounded-xl text-sm text-slate-700 focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all outline-none resize-none"
                     rows={3}
-                    placeholder="なぜ間違えた？次はどうする？（例：計算ミス。途中式を丁寧に書く）"
+                    placeholder={t('reflection_placeholder', language)}
                     value={reflection}
                     onChange={(e) => setReflection(e.target.value)}
                     onBlur={handleReflectionBlur}
@@ -292,7 +289,7 @@ const ReviewCard: React.FC<ReviewCardProps> = ({ item, onUpdateMastery, onUpdate
             {item.userCorrectAnswer && (
                  <div className="bg-emerald-50 p-4 rounded-xl border border-emerald-100">
                     <h4 className="font-bold text-emerald-800 flex items-center gap-2 mb-2">
-                        <Check size={18} /> 正解 (あなたのメモ)
+                        <Check size={18} /> {t('correct_answer_label', language)}
                     </h4>
                     <p className="text-emerald-900 whitespace-pre-wrap font-medium">{item.userCorrectAnswer}</p>
                 </div>
@@ -302,10 +299,9 @@ const ReviewCard: React.FC<ReviewCardProps> = ({ item, onUpdateMastery, onUpdate
             {item.aiSolution && (
                 <div className="bg-white">
                     <h4 className="font-bold text-slate-800 mb-2 flex items-center gap-2">
-                        <Sparkles size={18} className="text-indigo-500" /> AI 解説
+                        <Sparkles size={18} className="text-indigo-500" /> {t('ai_solution', language)}
                     </h4>
                     
-                    {/* SVG Diagram if available */}
                     <SvgRenderer svg={item.aiDiagram} />
 
                     <div className="prose prose-slate prose-sm max-w-none bg-slate-50 p-4 rounded-xl border border-slate-100">
@@ -318,7 +314,7 @@ const ReviewCard: React.FC<ReviewCardProps> = ({ item, onUpdateMastery, onUpdate
             {item.aiAnalysis && (
                 <div className="bg-white">
                      <h4 className="font-bold text-slate-800 mb-2 flex items-center gap-2">
-                        <BrainCircuit size={18} className="text-indigo-500" /> 分析・ポイント
+                        <BrainCircuit size={18} className="text-indigo-500" /> {t('analysis_points', language)}
                     </h4>
                     <p className="text-slate-600 text-sm leading-relaxed bg-indigo-50/50 p-4 rounded-xl border border-indigo-100">
                         {item.aiAnalysis}
@@ -335,24 +331,23 @@ const ReviewCard: React.FC<ReviewCardProps> = ({ item, onUpdateMastery, onUpdate
             {similarQuestion ? (
                  <div className="mt-6 bg-gradient-to-br from-indigo-50 to-purple-50 p-5 rounded-2xl border border-indigo-100">
                     <h4 className="font-bold text-indigo-900 mb-3 flex items-center gap-2">
-                        <BookCheck size={18} /> 類題で確認！
+                        <BookCheck size={18} /> {t('similar_question', language)}
                     </h4>
                     
-                    {/* SVG for similar question */}
                     <SvgRenderer svg={similarQuestion.svg} />
 
                     <div className="mb-4 font-medium text-slate-800">
                         Q. {similarQuestion.q}
                     </div>
                     <div className="text-sm bg-white/60 p-3 rounded-lg border border-indigo-100/50">
-                        <span className="font-bold text-indigo-700 block mb-1">正解・解説:</span>
+                        <span className="font-bold text-indigo-700 block mb-1">Answer:</span>
                         {similarQuestion.a}
                     </div>
                     <button 
                         onClick={() => setSimilarQuestion(null)}
                         className="mt-3 text-xs text-indigo-500 hover:text-indigo-700 font-medium"
                     >
-                        閉じる
+                        {t('close', language)}
                     </button>
                  </div>
             ) : item.aiAnalysis && (
@@ -363,12 +358,12 @@ const ReviewCard: React.FC<ReviewCardProps> = ({ item, onUpdateMastery, onUpdate
                  >
                     {generatingSimilar ? (
                         <>
-                            <Loader2 size={16} className="animate-spin" /> 作成中...
+                            <Loader2 size={16} className="animate-spin" /> {t('creating', language)}
                         </>
                     ) : (
                         <>
                             <RefreshCw size={16} className="group-hover:rotate-180 transition-transform duration-500" /> 
-                            類題にチャレンジする
+                            {t('generate_similar', language)}
                         </>
                     )}
                  </button>
@@ -389,9 +384,9 @@ const ReviewCard: React.FC<ReviewCardProps> = ({ item, onUpdateMastery, onUpdate
                 }`}
             >
                 {showAnswer ? (
-                    <><EyeOff size={18} /> 隠す</>
+                    <><EyeOff size={18} /> {t('hide', language)}</>
                 ) : (
-                    <><Eye size={18} /> 答えを見る</>
+                    <><Eye size={18} /> {t('show_answer', language)}</>
                 )}
             </button>
             
@@ -402,9 +397,9 @@ const ReviewCard: React.FC<ReviewCardProps> = ({ item, onUpdateMastery, onUpdate
                 className="flex-1 py-3 px-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-sm shadow-lg shadow-indigo-200 flex items-center justify-center gap-2 transition-all hover:scale-[1.02] active:scale-95 disabled:opacity-70 disabled:cursor-wait"
             >
                  {analyzing ? (
-                    <><Loader2 size={18} className="animate-spin" /> 解析中...</>
+                    <><Loader2 size={18} className="animate-spin" /> {t('analyzing', language)}</>
                  ) : (
-                    <><Sparkles size={18} /> AI解説を作成</>
+                    <><Sparkles size={18} /> {t('create_ai_analysis', language)}</>
                  )}
             </button>
         </div>

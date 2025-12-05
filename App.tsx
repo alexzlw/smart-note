@@ -15,13 +15,14 @@ import {
   User as UserIcon,
   Cloud
 } from 'lucide-react';
-import { MistakeItem, Subject, MasteryLevel } from './types';
+import { MistakeItem, Subject, MasteryLevel, Language } from './types';
 import Dashboard from './components/Dashboard';
 import AddMistakeModal from './components/AddMistakeModal';
 import ReviewCard from './components/ReviewCard';
 import SettingsModal from './components/SettingsModal';
 import { firebaseService, auth } from './services/firebase';
 import { User } from 'firebase/auth';
+import { t } from './utils/translations';
 
 const App: React.FC = () => {
   // State
@@ -34,6 +35,7 @@ const App: React.FC = () => {
   const [filterMastery, setFilterMastery] = useState<MasteryLevel | 'All'>('All');
   const [isLoading, setIsLoading] = useState(true);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [language, setLanguage] = useState<Language>('ja');
   
   // Auth State
   const [user, setUser] = useState<User | null>(null);
@@ -67,41 +69,34 @@ const App: React.FC = () => {
       } catch (e: any) {
           console.error("Login Error:", e);
           if (e.code === 'auth/unauthorized-domain') {
-              alert("設定エラー: 現在のドメインが Firebase で許可されていません。\nFirebase Console > Authentication > Settings > Authorized Domains に以下のドメインを追加してください:\n" + window.location.hostname);
+              alert("Error: Domain not authorized in Firebase Console.\nPlease add: " + window.location.hostname);
           } else if (e.code === 'auth/popup-closed-by-user') {
-              // User closed popup, ignore
+              // Ignore
           } else if (e.code === 'auth/operation-not-allowed') {
-               alert("設定エラー: Google ログインが無効になっています。\nFirebase Console > Authentication > Sign-in method で Google を有効にしてください。");
+               alert("Error: Google Sign-in not enabled in Firebase Console.");
           } else {
-              alert(`ログインに失敗しました: ${e.message}`);
+              alert(`Login failed: ${e.message}`);
           }
       }
   };
 
   const handleLogout = async () => {
-      if(confirm("ログアウトしますか？\n（クラウドとの同期が停止します）")) {
+      if(confirm(t('logout', language) + "?")) {
         await firebaseService.logout();
       }
   };
 
   const handleAddMistake = async (item: MistakeItem) => {
     try {
-        // Optimistic UI update
         setMistakes(prev => [item, ...prev]);
         await firebaseService.addMistake(user, item);
-        
-        // If uploading image to cloud, the URL changes, so reload is safer
-        // But for UX, we keep optimistic. 
-        // In a real app, we'd wait for the ID/URL back.
         if (user) {
-            loadData(user); // Reload to get real Image URL from cloud
+            loadData(user); 
         }
-        
         setView('review'); 
     } catch (e) {
         console.error("Failed to save mistake", e);
-        alert("保存に失敗しました。");
-        // Revert on error
+        alert(t('save_error', language));
         loadData(user);
     }
   };
@@ -133,17 +128,16 @@ const App: React.FC = () => {
   };
 
   const handleDeleteMistake = async (id: string) => {
-      // Small vibration for mobile feedback
       if (navigator.vibrate) navigator.vibrate(50);
       
-      if (window.confirm("この間違いノートを削除しますか？\n（この操作は元に戻せません）")) {
+      if (window.confirm(t('delete_confirm', language))) {
           try {
               const item = mistakes.find(m => m.id === id);
               setMistakes(prev => prev.filter(m => m.id !== id));
               await firebaseService.deleteMistake(user, id, item?.imageUrl);
           } catch (e) {
               console.error("Failed to delete item", e);
-              alert("削除に失敗しました。");
+              alert("Failed to delete.");
               loadData(user);
           }
       }
@@ -165,7 +159,7 @@ const App: React.FC = () => {
           <div className="min-h-screen flex items-center justify-center bg-slate-50">
               <div className="flex flex-col items-center gap-4">
                   <div className="w-12 h-12 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></div>
-                  <p className="text-slate-500 font-medium">読み込み中...</p>
+                  <p className="text-slate-500 font-medium">Loading...</p>
               </div>
           </div>
       );
@@ -213,8 +207,8 @@ const App: React.FC = () => {
               <GraduationCap className="text-white" size={24} />
             </div>
             <div>
-              <h1 className="font-bold text-xl text-white tracking-tight">SmartNote</h1>
-              <p className="text-xs text-slate-500 font-medium">AI間違いノート</p>
+              <h1 className="font-bold text-xl text-white tracking-tight">{t('app_name', language)}</h1>
+              <p className="text-xs text-slate-500 font-medium">{t('app_desc', language)}</p>
             </div>
           </div>
           <button onClick={() => setIsMobileMenuOpen(false)} className="md:hidden text-slate-400">
@@ -234,12 +228,12 @@ const App: React.FC = () => {
                         </div>
                     )}
                     <div className="flex-1 overflow-hidden">
-                        <p className="text-xs text-slate-300 font-bold truncate">{user.displayName || 'ユーザー'}</p>
+                        <p className="text-xs text-slate-300 font-bold truncate">{user.displayName || 'User'}</p>
                         <p className="text-[10px] text-emerald-400 flex items-center gap-1">
-                            <Cloud size={10} /> クラウド同期中
+                            <Cloud size={10} /> {t('syncing', language)}
                         </p>
                     </div>
-                    <button onClick={handleLogout} className="text-slate-400 hover:text-white transition-colors" title="ログアウト">
+                    <button onClick={handleLogout} className="text-slate-400 hover:text-white transition-colors" title={t('logout', language)}>
                         <LogOut size={16} />
                     </button>
                 </div>
@@ -249,15 +243,15 @@ const App: React.FC = () => {
                     className="w-full bg-slate-800 hover:bg-slate-700 text-white rounded-xl p-3 flex items-center justify-center gap-2 border border-slate-700 transition-colors"
                 >
                     <LogIn size={18} className="text-indigo-400" />
-                    <span className="text-sm font-medium">Googleでログイン</span>
+                    <span className="text-sm font-medium">{t('login_google', language)}</span>
                 </button>
             )}
         </div>
 
         {/* Navigation */}
         <nav className="flex-1 px-4 space-y-2">
-          <NavItem id="dashboard" icon={BarChart2} label="データ分析" />
-          <NavItem id="review" icon={BookOpen} label="間違いノート" count={mistakes.length} />
+          <NavItem id="dashboard" icon={BarChart2} label={t('dashboard', language)} />
+          <NavItem id="review" icon={BookOpen} label={t('review_notes', language)} count={mistakes.length} />
         </nav>
 
         {/* Bottom Action */}
@@ -271,12 +265,12 @@ const App: React.FC = () => {
               className="w-full flex items-center gap-3 px-4 py-2 rounded-xl text-slate-400 hover:bg-slate-800 hover:text-white transition-colors"
            >
               <Settings size={20} />
-              <span className="font-medium">設定・データ管理</span>
+              <span className="font-medium">{t('settings', language)}</span>
            </button>
 
            <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl p-4 border border-slate-700/50">
-              <h3 className="text-white font-medium text-sm mb-1">継続は力なり！</h3>
-              <p className="text-slate-400 text-xs mb-3">間違いを追加して、分析を充実させましょう。</p>
+              <h3 className="text-white font-medium text-sm mb-1">{t('keep_going', language)}</h3>
+              <p className="text-slate-400 text-xs mb-3">{t('keep_going_desc', language)}</p>
               <button 
                 onClick={() => {
                   setIsModalOpen(true);
@@ -285,7 +279,7 @@ const App: React.FC = () => {
                 className="w-full bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg py-2.5 px-4 flex items-center justify-center gap-2 shadow-lg shadow-indigo-900/20 transition-all active:scale-95 font-medium text-sm"
               >
                 <Plus size={18} />
-                間違いを追加
+                {t('add_mistake', language)}
               </button>
            </div>
         </div>
@@ -293,7 +287,6 @@ const App: React.FC = () => {
 
       {/* Main Content Area */}
       <main className="flex-1 overflow-x-hidden relative">
-        {/* Top Header Background Decoration */}
         <div className="absolute top-0 left-0 w-full h-64 bg-gradient-to-b from-indigo-50/50 to-transparent pointer-events-none" />
 
         {/* Mobile Header */}
@@ -310,14 +303,14 @@ const App: React.FC = () => {
         </div>
         
         <div className="max-w-7xl mx-auto p-4 md:p-10 relative z-0">
-            {view === 'dashboard' && <Dashboard mistakes={mistakes} />}
+            {view === 'dashboard' && <Dashboard mistakes={mistakes} language={language} />}
 
             {view === 'review' && (
                 <div className="space-y-8 animate-fade-in">
                     <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6">
                         <div>
-                             <h2 className="text-3xl font-bold text-slate-900 tracking-tight">マイノート</h2>
-                             <p className="text-slate-500 mt-2 text-lg">知識の隙間を埋めて、苦手を克服しましょう。</p>
+                             <h2 className="text-3xl font-bold text-slate-900 tracking-tight">{t('my_notebook', language)}</h2>
+                             <p className="text-slate-500 mt-2 text-lg">{t('notebook_desc', language)}</p>
                         </div>
                         
                         {/* Filters */}
@@ -326,7 +319,7 @@ const App: React.FC = () => {
                                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                                 <input 
                                     type="text" 
-                                    placeholder="検索..." 
+                                    placeholder={t('search_placeholder', language)}
                                     value={searchTerm}
                                     onChange={(e) => setSearchTerm(e.target.value)}
                                     className="pl-10 pr-4 py-2.5 bg-transparent rounded-lg text-sm focus:bg-slate-50 outline-none w-full md:w-56 text-slate-700 placeholder-slate-400"
@@ -340,7 +333,7 @@ const App: React.FC = () => {
                                 onChange={(e) => setSelectedSubject(e.target.value as any)}
                                 className="px-3 py-2.5 bg-transparent hover:bg-slate-50 rounded-lg text-sm outline-none text-slate-700 font-medium cursor-pointer"
                             >
-                                <option value="All">全科目</option>
+                                <option value="All">{t('all_subjects', language)}</option>
                                 {Object.values(Subject).map(s => <option key={s} value={s}>{s}</option>)}
                             </select>
 
@@ -349,7 +342,7 @@ const App: React.FC = () => {
                                 onChange={(e) => setFilterMastery(e.target.value as any)}
                                 className="px-3 py-2.5 bg-transparent hover:bg-slate-50 rounded-lg text-sm outline-none text-slate-700 font-medium cursor-pointer"
                             >
-                                <option value="All">全ステータス</option>
+                                <option value="All">{t('all_statuses', language)}</option>
                                 {Object.values(MasteryLevel).map(s => <option key={s} value={s}>{s}</option>)}
                             </select>
                         </div>
@@ -360,15 +353,15 @@ const App: React.FC = () => {
                             <div className="bg-slate-50 p-6 rounded-full mb-6 ring-8 ring-slate-50/50">
                                 <Filter className="text-slate-300" size={40} />
                             </div>
-                            <h3 className="text-xl font-semibold text-slate-900 mb-2">間違いが見つかりません</h3>
+                            <h3 className="text-xl font-semibold text-slate-900 mb-2">{t('no_results', language)}</h3>
                             <p className="text-slate-500 max-w-sm mx-auto mb-8">
-                                {user ? "クラウドにはまだデータがありません。" : "現在のフィルターに一致する問題はありません。"}
+                                {user ? t('no_results_cloud', language) : t('no_results_filter', language)}
                             </p>
                             <button 
                                 onClick={() => setIsModalOpen(true)}
                                 className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-medium shadow-md shadow-indigo-200 transition-all active:scale-95"
                             >
-                                最初の間違いを追加する
+                                {t('add_first_mistake', language)}
                             </button>
                         </div>
                     ) : (
@@ -380,6 +373,7 @@ const App: React.FC = () => {
                                     onUpdateMastery={handleUpdateMastery} 
                                     onUpdateItem={handleUpdateItem}
                                     onDelete={handleDeleteMistake}
+                                    language={language}
                                 />
                             ))}
                         </div>
@@ -394,6 +388,7 @@ const App: React.FC = () => {
         isOpen={isModalOpen} 
         onClose={() => setIsModalOpen(false)} 
         onSave={handleAddMistake}
+        language={language}
       />
 
       <SettingsModal 
@@ -401,6 +396,8 @@ const App: React.FC = () => {
         onClose={() => setIsSettingsOpen(false)} 
         mistakes={mistakes}
         onDataChanged={() => loadData(user)}
+        language={language}
+        setLanguage={setLanguage}
       />
 
     </div>
