@@ -36,6 +36,7 @@ const App: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [language, setLanguage] = useState<Language>('ja');
+  const [customPrompt, setCustomPrompt] = useState('');
   
   // Auth State
   const [user, setUser] = useState<User | null>(null);
@@ -53,12 +54,17 @@ const App: React.FC = () => {
     }
   };
 
-  // Auth Listener
+  // Auth & Settings Listener
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged((u) => {
         setUser(u);
         loadData(u);
     });
+
+    // Load custom prompt settings
+    const savedPrompt = localStorage.getItem('smartnote_custom_prompt');
+    if (savedPrompt) setCustomPrompt(savedPrompt);
+
     return () => unsubscribe();
   }, []);
 
@@ -374,6 +380,7 @@ const App: React.FC = () => {
                                     onUpdateItem={handleUpdateItem}
                                     onDelete={handleDeleteMistake}
                                     language={language}
+                                    customPrompt={customPrompt}
                                 />
                             ))}
                         </div>
@@ -398,6 +405,8 @@ const App: React.FC = () => {
         onDataChanged={() => loadData(user)}
         language={language}
         setLanguage={setLanguage}
+        customPrompt={customPrompt}
+        setCustomPrompt={setCustomPrompt}
       />
 
     </div>

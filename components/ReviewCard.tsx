@@ -13,9 +13,21 @@ interface ReviewCardProps {
   onUpdateItem: (item: MistakeItem) => void;
   onDelete?: (id: string) => void;
   language: Language;
+  customPrompt?: string;
 }
 
-const ReviewCard: React.FC<ReviewCardProps> = ({ item, onUpdateMastery, onUpdateItem, onDelete, language }) => {
+const SvgRenderer = ({ svg }: { svg?: string }) => {
+  if (!svg || !svg.includes('<svg')) return null;
+  const cleanSvg = svg.replace(/```xml|```svg|```/g, '').trim();
+  return (
+      <div 
+          className="my-4 p-4 bg-white rounded-lg border border-slate-200 flex justify-center"
+          dangerouslySetInnerHTML={{ __html: cleanSvg }}
+      />
+  );
+};
+
+const ReviewCard: React.FC<ReviewCardProps> = ({ item, onUpdateMastery, onUpdateItem, onDelete, language, customPrompt }) => {
   const [showAnswer, setShowAnswer] = useState(false);
   const [similarQuestion, setSimilarQuestion] = useState<{q: string, a: string, svg?: string} | null>(null);
   const [generatingSimilar, setGeneratingSimilar] = useState(false);
@@ -81,8 +93,8 @@ const ReviewCard: React.FC<ReviewCardProps> = ({ item, onUpdateMastery, onUpdate
     setAnalyzing(true);
     setErrorMsg(null);
     try {
-        // Pass language to AI service
-        const result = await analyzeImage(imageToAnalyze, item.userNotes || "", language);
+        // Pass language and custom prompt to AI service
+        const result = await analyzeImage(imageToAnalyze, item.userNotes || "", language, customPrompt);
         
         const updatedItem: MistakeItem = {
             ...item,
@@ -143,17 +155,6 @@ const ReviewCard: React.FC<ReviewCardProps> = ({ item, onUpdateMastery, onUpdate
       [MasteryLevel.NEW]: { color: 'bg-blue-50 text-blue-700 border-blue-200' },
       [MasteryLevel.REVIEWING]: { color: 'bg-amber-50 text-amber-700 border-amber-200' },
       [MasteryLevel.MASTERED]: { color: 'bg-emerald-50 text-emerald-700 border-emerald-200' }
-  };
-
-  const SvgRenderer = ({ svg }: { svg?: string }) => {
-    if (!svg || !svg.includes('<svg')) return null;
-    const cleanSvg = svg.replace(/```xml|```svg|```/g, '').trim();
-    return (
-        <div 
-            className="my-4 p-4 bg-white rounded-lg border border-slate-200 flex justify-center"
-            dangerouslySetInnerHTML={{ __html: cleanSvg }}
-        />
-    );
   };
 
   return (

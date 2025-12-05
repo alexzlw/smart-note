@@ -30,10 +30,9 @@ const AddMistakeModal: React.FC<AddMistakeModalProps> = ({ isOpen, onClose, onSa
       return new Promise((resolve, reject) => {
           // Balanced Setting:
           // 1600px is high enough for clear text/diagrams.
-          // 0.75 quality keeps file size usually under 900KB.
-          // This ensures the image fits in Firestore (1MB limit) for the AI backup field.
+          // 0.7 quality keeps file size safe for Firestore 1MB limit.
           const maxWidth = 1600; 
-          const quality = 0.75;   
+          const quality = 0.7;   
           const reader = new FileReader();
           
           reader.readAsDataURL(file);

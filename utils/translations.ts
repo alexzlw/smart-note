@@ -19,7 +19,8 @@ type TranslationKey =
   | 'language_settings' | 'data_management' | 'export_backup' | 'export_desc'
   | 'download_json' | 'import_restore' | 'import_desc' | 'select_file'
   | 'import_success' | 'import_error' | 'danger_zone' | 'delete_all_data'
-  | 'delete_all_confirm' | 'deleted' | 'optimize_image' | 'save_error';
+  | 'delete_all_confirm' | 'deleted' | 'optimize_image' | 'save_error'
+  | 'custom_prompt_title' | 'custom_prompt_desc' | 'custom_prompt_placeholder' | 'save_settings';
 
 const resources: Record<Language, Record<TranslationKey, string>> = {
   ja: {
@@ -98,7 +99,11 @@ const resources: Record<Language, Record<TranslationKey, string>> = {
     delete_all_confirm: '本当によろしいですか？すべてのデータが永久に削除されます。',
     deleted: '削除しました',
     optimize_image: '画像を最適化中...',
-    save_error: '保存中にエラーが発生しました。'
+    save_error: '保存中にエラーが発生しました。',
+    custom_prompt_title: 'AIへの指示 (プロンプト)',
+    custom_prompt_desc: 'AIにどのような解説をしてほしいか、指示をカスタマイズできます。空欄の場合はデフォルト設定が使用されます。',
+    custom_prompt_placeholder: '例：小学生にもわかるように優しく教えて。 / 文法事項を中心に解説して。 / 答えだけでなく途中式を詳しく書いて。',
+    save_settings: '設定を保存'
   },
   en: {
     app_name: 'SmartNote',
@@ -176,7 +181,11 @@ const resources: Record<Language, Record<TranslationKey, string>> = {
     delete_all_confirm: 'Are you sure? All data will be permanently deleted.',
     deleted: 'Deleted',
     optimize_image: 'Optimizing image...',
-    save_error: 'Error occurred while saving.'
+    save_error: 'Error occurred while saving.',
+    custom_prompt_title: 'Custom AI Instructions (Prompt)',
+    custom_prompt_desc: 'Customize how the AI explains problems. Leave blank to use default settings.',
+    custom_prompt_placeholder: 'E.g., Explain like I\'m 5. / Focus on grammar. / Show detailed calculation steps.',
+    save_settings: 'Save Settings'
   },
   zh: {
     app_name: '智能错题本',
@@ -254,7 +263,11 @@ const resources: Record<Language, Record<TranslationKey, string>> = {
     delete_all_confirm: '确定吗？所有数据将被永久删除。',
     deleted: '已删除',
     optimize_image: '图片优化中...',
-    save_error: '保存时发生错误。'
+    save_error: '保存时发生错误。',
+    custom_prompt_title: '自定义 AI 指令 (Prompt)',
+    custom_prompt_desc: '您可以自定义 AI 讲解题目的方式。留空则使用默认设置。',
+    custom_prompt_placeholder: '例：像给小学生讲课一样解释。 / 重点分析语法。 / 不要只给答案，要列出详细计算步骤。',
+    save_settings: '保存设置'
   }
 };
 

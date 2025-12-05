@@ -1,6 +1,6 @@
 
 import React, { useRef, useState } from 'react';
-import { X, Download, Upload, Database, AlertCircle, Check, Trash2, Globe } from 'lucide-react';
+import { X, Download, Upload, Database, AlertCircle, Check, Trash2, Globe, MessageSquare } from 'lucide-react';
 import { MistakeItem, Language } from '../types';
 import { dbService } from '../services/db';
 import { t } from '../utils/translations';
@@ -12,12 +12,16 @@ interface SettingsModalProps {
   onDataChanged: () => void;
   language: Language;
   setLanguage: (lang: Language) => void;
+  customPrompt: string;
+  setCustomPrompt: (prompt: string) => void;
 }
 
-const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, mistakes, onDataChanged, language, setLanguage }) => {
+const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, mistakes, onDataChanged, language, setLanguage, customPrompt, setCustomPrompt }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [importStatus, setImportStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [isClearing, setIsClearing] = useState(false);
+  const [localPrompt, setLocalPrompt] = useState(customPrompt);
+  const [isSavedPrompt, setIsSavedPrompt] = useState(false);
 
   if (!isOpen) return null;
 
@@ -75,6 +79,13 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, mistakes
       }
   }
 
+  const handleSavePrompt = () => {
+      setCustomPrompt(localPrompt);
+      localStorage.setItem('smartnote_custom_prompt', localPrompt);
+      setIsSavedPrompt(true);
+      setTimeout(() => setIsSavedPrompt(false), 2000);
+  }
+
   return (
     <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
       <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
@@ -118,6 +129,30 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, mistakes
                         中文
                     </button>
                 </div>
+            </div>
+
+            <div className="h-px bg-slate-100"></div>
+
+            {/* Custom Prompt Section */}
+            <div className="space-y-3">
+                <h4 className="font-bold text-slate-800 flex items-center gap-2">
+                    <MessageSquare size={18} className="text-purple-500"/> {t('custom_prompt_title', language)}
+                </h4>
+                <p className="text-sm text-slate-500">
+                    {t('custom_prompt_desc', language)}
+                </p>
+                <textarea 
+                    value={localPrompt}
+                    onChange={(e) => setLocalPrompt(e.target.value)}
+                    placeholder={t('custom_prompt_placeholder', language)}
+                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-purple-500 outline-none resize-none h-24"
+                />
+                <button 
+                    onClick={handleSavePrompt}
+                    className="w-full py-2 bg-purple-50 hover:bg-purple-100 text-purple-700 font-bold rounded-xl transition-all flex items-center justify-center gap-2 text-sm"
+                >
+                   {isSavedPrompt ? <Check size={16} /> : t('save_settings', language)}
+                </button>
             </div>
 
             <div className="h-px bg-slate-100"></div>
