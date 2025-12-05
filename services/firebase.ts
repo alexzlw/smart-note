@@ -94,3 +94,82 @@ export const firebaseService = {
           } catch(e) {
               console.error("Image upload failed", e);
               // Fallback: If storage upload fails, use the base64 as the main URL (stored in DB)
+              // Ensure it fits in document
+              if (item.imageUrl.length < 950 * 1024) {
+                  finalImageUrl = item.imageUrl;
+              } else {
+                  throw new Error("Image upload failed and image is too large for offline backup.");
+              }
+          }
+      }
+
+      // Save to Firestore
+      // We use the item.id as the document ID for consistency
+      await setDoc(doc(db, 'users', user.uid, 'mistakes', item.id), {
+        ...item,
+        imageUrl: finalImageUrl,
+        imageBase64: base64Backup, // Store backup
+        userId: user.uid
+      });
+
+    } else {
+      // Local Mode
+      await localDb.addMistake(item);
+    }
+  },
+
+  getAllMistakes: async (user: User | null): Promise<MistakeItem[]> => {
+    if (user) {
+      // Cloud Mode
+      const mistakesRef = collection(db, 'users', user.uid, 'mistakes');
+      // Order by createdAt desc
+      const q = query(mistakesRef, orderBy('createdAt', 'desc'));
+      const snapshot = await getDocs(q);
+      return snapshot.docs.map(doc => doc.data() as MistakeItem);
+    } else {
+      // Local Mode
+      return await localDb.getAllMistakes();
+    }
+  },
+
+  updateMistake: async (user: User | null, item: MistakeItem) => {
+    if (user) {
+      // Cloud Mode
+      // If reflection image changed (is base64), upload it too?
+      // For simplicity, we currently store reflectionImage as base64 string in DB (if small enough)
+      // or we could implement upload logic similar to main image.
+      // Current implementation assumes reflectionImage fits in doc limit or we add logic later.
+      
+      const docRef = doc(db, 'users', user.uid, 'mistakes', item.id);
+      await setDoc(docRef, item, { merge: true });
+    } else {
+      // Local Mode
+      await localDb.updateMistake(item);
+    }
+  },
+
+  deleteMistake: async (user: User | null, id: string, imageUrl?: string) => {
+    if (user) {
+      // Cloud Mode
+      
+      // 1. Delete from Firestore
+      await deleteDoc(doc(db, 'users', user.uid, 'mistakes', id));
+
+      // 2. Delete image from Storage if it's a cloud URL
+      if (imageUrl && imageUrl.startsWith('http')) {
+        try {
+            // Extract ref from URL or reconstruction isn't easy with tokens.
+            // Easier way: Create a ref from URL
+            const imageRef = ref(storage, imageUrl);
+            await deleteObject(imageRef);
+        } catch (e) {
+            console.warn("Failed to delete image from storage (might already be gone)", e);
+        }
+      }
+
+    } else {
+      // Local Mode
+      await localDb.deleteMistake(id);
+    }
+  }
+};
