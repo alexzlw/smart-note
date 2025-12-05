@@ -79,73 +79,18 @@ export const firebaseService = {
     if (user) {
       // Cloud Mode
       let finalImageUrl = item.imageUrl || '';
-      // Upload image to storage to save DB space
+      let base64Backup = '';
+
+      // Upload image to storage
       if (item.imageUrl && item.imageUrl.startsWith('data:')) {
+          // Keep a copy of the Base64 for DB (AI Analysis fallback)
+          // Only if it's smaller than ~900KB to respect Firestore 1MB limit
+          if (item.imageUrl.length < 950 * 1024) {
+              base64Backup = item.imageUrl;
+          }
+
           try {
              finalImageUrl = await firebaseService.uploadImage(user.uid, item.imageUrl);
           } catch(e) {
               console.error("Image upload failed", e);
-              // Since on Blaze, we prefer to fail rather than bloating DB with base64 
-              // (unless you want a fallback, but users usually prefer knowing it failed)
-              throw new Error("Failed to upload image. Please check network.");
-          }
-      }
-
-      const docRef = doc(db, 'users', user.uid, 'mistakes', item.id);
-      await setDoc(docRef, { ...item, imageUrl: finalImageUrl });
-    } else {
-      // Local Mode
-      await localDb.addMistake(item);
-    }
-  },
-
-  getAllMistakes: async (user: User | null): Promise<MistakeItem[]> => {
-    if (user) {
-      // Cloud Mode
-      const q = query(collection(db, 'users', user.uid, 'mistakes'), orderBy('createdAt', 'desc'));
-      const snapshot = await getDocs(q);
-      return snapshot.docs.map(doc => doc.data() as MistakeItem);
-    } else {
-      // Local Mode
-      return await localDb.getAllMistakes();
-    }
-  },
-
-  updateMistake: async (user: User | null, item: MistakeItem) => {
-    if (user) {
-      // Cloud Mode
-      let finalImageUrl = item.imageUrl || '';
-      
-      // If image changed to a new base64, upload it
-      if (item.imageUrl && item.imageUrl.startsWith('data:')) {
-           finalImageUrl = await firebaseService.uploadImage(user.uid, item.imageUrl);
-      }
-
-      const docRef = doc(db, 'users', user.uid, 'mistakes', item.id);
-      await updateDoc(docRef, { ...item, imageUrl: finalImageUrl });
-    } else {
-      // Local Mode
-      await localDb.updateMistake(item);
-    }
-  },
-
-  deleteMistake: async (user: User | null, id: string, imageUrl?: string) => {
-    if (user) {
-      // Cloud Mode
-      await deleteDoc(doc(db, 'users', user.uid, 'mistakes', id));
-      
-      // Try delete image from storage if it is a cloud URL
-      if (imageUrl && imageUrl.includes('firebasestorage')) {
-          try {
-              const imageRef = ref(storage, imageUrl);
-              await deleteObject(imageRef);
-          } catch(e) {
-              console.log("Could not delete cloud image (might not exist)", e);
-          }
-      }
-    } else {
-      // Local Mode
-      await localDb.deleteMistake(id);
-    }
-  }
-};
+              // Fallback: If storage upload fails, use the base64 as the main URL (stored in DB)

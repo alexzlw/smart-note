@@ -15,20 +15,28 @@ export enum MasteryLevel {
 
 export type Language = 'ja' | 'en' | 'zh';
 
+export interface TokenUsage {
+  promptTokenCount: number;
+  candidatesTokenCount: number;
+  totalTokenCount: number;
+}
+
 export interface MistakeItem {
   id: string;
   createdAt: number;
-  imageUrl?: string; // Base64 of the problem image
+  imageUrl?: string; // URL from Cloud Storage or Base64 (Local)
+  imageBase64?: string; // New field: Backup Base64 for AI Analysis (Bypasses CORS)
   questionText: string;
   userNotes?: string;
-  userCorrectAnswer?: string; // New field for manual answer
-  reflection?: string; // New field for student self-reflection
-  reflectionImage?: string; // New field for handwritten reflection
+  userCorrectAnswer?: string; 
+  reflection?: string; 
+  reflectionImage?: string; 
   
-  // AI Generated fields (Optional now, as they are generated on demand)
+  // AI Generated fields
   aiSolution?: string;
   aiAnalysis?: string;
-  aiDiagram?: string; // New field for SVG diagram
+  aiDiagram?: string; 
+  aiTokenUsage?: TokenUsage;
   tags: string[];
   
   subject: Subject;
@@ -42,11 +50,13 @@ export interface AIAnalysisResult {
   analysis: string;
   tags: string[];
   suggestedSubject: string;
-  svgDiagram?: string; // Optional SVG code
+  svgDiagram?: string; 
+  tokenUsage?: TokenUsage;
 }
 
 export interface AISimilarQuestionResult {
   question: string;
   answer: string;
-  svgDiagram?: string; // Optional SVG code for the new question
+  svgDiagram?: string; 
+  tokenUsage?: TokenUsage;
 }
