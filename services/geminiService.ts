@@ -71,6 +71,37 @@ function safeJsonParse<T>(text: string): T {
   return JSON.parse(cleaned);
 }
 
+// Helper to fetch image from URL and convert to Base64
+async function urlToData(url: string): Promise<{ mimeType: string, base64Data: string }> {
+  try {
+    // Note: This fetch requires CORS to be configured on the Firebase Storage bucket.
+    // Standard fetch from browser to storage bucket.
+    const response = await fetch(url, { mode: 'cors' });
+    if (!response.ok) throw new Error(`Failed to fetch image: ${response.statusText}`);
+    
+    const blob = await response.blob();
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64String = reader.result as string;
+        // base64String looks like "data:image/jpeg;base64,/9j/4AAQSk..."
+        const parts = base64String.split('base64,');
+        const mimeMatch = parts[0].match(/data:(.*?);/);
+        resolve({
+          mimeType: mimeMatch ? mimeMatch[1] : 'image/jpeg',
+          base64Data: parts[1]
+        });
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  } catch (error) {
+    console.error("Error converting URL to base64:", error);
+    // Provide a helpful error message about CORS
+    throw new Error("Failed to download image from cloud. If you are using Firebase Storage, please ensure CORS is configured on your bucket.");
+  }
+}
+
 // Helper to convert file to base64 (Raw base64)
 export const fileToGenerativePart = async (file: File): Promise<string> => {
   return new Promise((resolve, reject) => {
@@ -92,15 +123,31 @@ export const analyzeImage = async (dataUrlOrBase64: string, userHint: string, la
   
   // 1. Process the image data
   let mimeType = 'image/jpeg';
-  let base64Data = dataUrlOrBase64;
+  let base64Data = '';
 
-  if (dataUrlOrBase64.includes('base64,')) {
+  // Check if input is a URL (http/https)
+  if (dataUrlOrBase64.startsWith('http')) {
+      try {
+          const imageData = await urlToData(dataUrlOrBase64);
+          mimeType = imageData.mimeType;
+          base64Data = imageData.base64Data;
+      } catch (e: any) {
+          console.error("Image Download Error", e);
+          throw new Error(e.message || "Failed to download image for analysis");
+      }
+  } 
+  // Check if input is Data URL
+  else if (dataUrlOrBase64.includes('base64,')) {
       const parts = dataUrlOrBase64.split('base64,');
       base64Data = parts[1];
       const mimeMatch = parts[0].match(/data:(.*?);/);
       if (mimeMatch && mimeMatch[1]) {
           mimeType = mimeMatch[1];
       }
+  } 
+  // Assume raw base64
+  else {
+      base64Data = dataUrlOrBase64;
   }
 
   // Define language specifics
