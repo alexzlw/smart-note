@@ -1,5 +1,5 @@
 
-import { GoogleGenAI, Type, Schema } from "@google/genai";
+import { GoogleGenAI, Type, Schema, HarmCategory, HarmBlockThreshold } from "@google/genai";
 import { AIAnalysisResult, AISimilarQuestionResult, Language } from "../types";
 
 // Helper: Get API Key safely for Vite/Browser environment
@@ -102,21 +102,6 @@ async function urlToData(url: string): Promise<{ mimeType: string, base64Data: s
   }
 }
 
-// Helper to convert file to base64 (Raw base64)
-export const fileToGenerativePart = async (file: File): Promise<string> => {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      const base64String = reader.result as string;
-      // Remove data url prefix (e.g. "data:image/jpeg;base64,")
-      const base64Data = base64String.split(',')[1];
-      resolve(base64Data);
-    };
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
-};
-
 export const analyzeImage = async (dataUrlOrBase64: string, userHint: string, language: Language = 'ja'): Promise<AIAnalysisResult> => {
   const modelId = "gemini-2.5-flash"; 
   const ai = getAI();
@@ -193,14 +178,32 @@ export const analyzeImage = async (dataUrlOrBase64: string, userHint: string, la
           responseMimeType: "application/json",
           responseSchema: responseSchema,
           temperature: 0.4,
-          maxOutputTokens: 8192 
+          maxOutputTokens: 8192,
+          // Explicitly set safety settings to BLOCK_NONE to avoid filtering educational content (e.g. biology, history)
+          safetySettings: [
+             { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
+             { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
+             { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE },
+             { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE },
+          ]
         }
       });
 
       if (response.text) {
-        return safeJsonParse<AIAnalysisResult>(response.text);
+        const result = safeJsonParse<AIAnalysisResult>(response.text);
+        // Inject token usage
+        if (response.usageMetadata) {
+            result.tokenUsage = {
+                promptTokenCount: response.usageMetadata.promptTokenCount || 0,
+                candidatesTokenCount: response.usageMetadata.candidatesTokenCount || 0,
+                totalTokenCount: response.usageMetadata.totalTokenCount || 0
+            };
+        }
+        return result;
       }
-      throw new Error("No response text from Gemini");
+      
+      console.error("Empty Response", JSON.stringify(response, null, 2));
+      throw new Error("No response text from Gemini. The model might have filtered the content.");
     } catch (error) {
       console.error("Gemini Analysis Error:", error);
       throw error;
@@ -237,12 +240,26 @@ export const generateSimilarQuestion = async (originalQuestion: string, original
                 config: {
                     responseMimeType: "application/json",
                     responseSchema: responseSchema,
-                    maxOutputTokens: 8192
+                    maxOutputTokens: 8192,
+                    safetySettings: [
+                         { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
+                         { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
+                         { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE },
+                         { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE },
+                    ]
                 }
             });
 
             if (response.text) {
-                return safeJsonParse<AISimilarQuestionResult>(response.text);
+                const result = safeJsonParse<AISimilarQuestionResult>(response.text);
+                if (response.usageMetadata) {
+                    result.tokenUsage = {
+                        promptTokenCount: response.usageMetadata.promptTokenCount || 0,
+                        candidatesTokenCount: response.usageMetadata.candidatesTokenCount || 0,
+                        totalTokenCount: response.usageMetadata.totalTokenCount || 0
+                    };
+                }
+                return result;
             }
             throw new Error("No response text");
         } catch (error) {

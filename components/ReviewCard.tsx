@@ -69,12 +69,20 @@ const ReviewCard: React.FC<ReviewCardProps> = ({ item, onUpdateMastery, onUpdate
   const canShowAnswer = hasAnalysis || hasUserAnswer;
 
   const handleAnalyze = async () => {
-    if (!item.imageUrl) return;
+    // CRITICAL FIX: Prioritize item.imageBase64 (backup from DB) over item.imageUrl (Cloud URL)
+    // This avoids CORS issues and URL download failures by sending the raw data directly.
+    const imageToAnalyze = item.imageBase64 || item.imageUrl;
+    
+    if (!imageToAnalyze) {
+        setErrorMsg("No image data available");
+        return;
+    }
+
     setAnalyzing(true);
     setErrorMsg(null);
     try {
         // Pass language to AI service
-        const result = await analyzeImage(item.imageUrl, item.userNotes || "", language);
+        const result = await analyzeImage(imageToAnalyze, item.userNotes || "", language);
         
         const updatedItem: MistakeItem = {
             ...item,
@@ -83,6 +91,7 @@ const ReviewCard: React.FC<ReviewCardProps> = ({ item, onUpdateMastery, onUpdate
             aiAnalysis: result.analysis,
             aiDiagram: result.svgDiagram,
             tags: result.tags,
+            aiTokenUsage: result.tokenUsage
         };
         onUpdateItem(updatedItem);
         setShowAnswer(true); 
@@ -92,7 +101,7 @@ const ReviewCard: React.FC<ReviewCardProps> = ({ item, onUpdateMastery, onUpdate
         if (msg.includes("quota") || msg.includes("429")) {
             setErrorMsg(t('quota_error', language));
         } else {
-            setErrorMsg(t('analysis_error', language));
+            setErrorMsg(t('analysis_error', language) + ` (${msg})`);
         }
     } finally {
         setAnalyzing(false);
@@ -326,6 +335,15 @@ const ReviewCard: React.FC<ReviewCardProps> = ({ item, onUpdateMastery, onUpdate
                     </div>
                 </div>
             )}
+            
+            {/* Token Usage Display */}
+            {item.aiTokenUsage && (
+                <div className="flex justify-end">
+                    <span className="text-[10px] text-slate-400 bg-slate-50 px-2 py-1 rounded border border-slate-100">
+                        Tokens: {item.aiTokenUsage.totalTokenCount}
+                    </span>
+                </div>
+            )}
 
             {/* Similar Question */}
             {similarQuestion ? (
@@ -406,9 +424,9 @@ const ReviewCard: React.FC<ReviewCardProps> = ({ item, onUpdateMastery, onUpdate
         
         {/* Error Message Display */}
         {errorMsg && (
-            <div className="mt-3 p-3 bg-rose-50 text-rose-600 text-xs font-bold rounded-lg flex items-center gap-2 animate-fade-in">
-                <AlertTriangle size={14} />
-                {errorMsg}
+            <div className="mt-3 p-3 bg-rose-50 text-rose-600 text-xs font-bold rounded-lg flex items-center gap-2 animate-fade-in break-all">
+                <AlertTriangle size={14} className="shrink-0" />
+                <span>{errorMsg}</span>
             </div>
         )}
 
