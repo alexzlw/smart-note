@@ -46,11 +46,34 @@ async function withRetry<T>(operation: () => Promise<T>, retries = 3, initialDel
       return await operation();
     } catch (error: any) {
       lastError = error;
-      // Check for quota/rate limit errors (429 or specific messages)
+
+      // --- Error Analysis ---
+      
+      // 1. Check for API Restriction Error (User needs to config Console)
+      // code: 403, reason: "API_KEY_SERVICE_BLOCKED"
+      if (error.status === 403 || (error.message && error.message.includes("API_KEY_SERVICE_BLOCKED"))) {
+         console.error("API Restriction Error detected.");
+         // Throw immediately, no retry
+         throw new Error("Google Cloud Config Error: This API Key is restricted. Go to Console > Credentials > Edit API Key > API Restrictions, and add 'Generative Language API' to the list.");
+      }
+
+      // 2. Check for Service Disabled Error (User needs to enable API)
+      // reason: "SERVICE_DISABLED"
+      if (error.message && error.message.includes("SERVICE_DISABLED")) {
+          console.error("Service Disabled Error detected.");
+          const projectId = error.message.match(/project (\d+)/)?.[1];
+          const enableLink = projectId 
+            ? `https://console.developers.google.com/apis/api/generativelanguage.googleapis.com/overview?project=${projectId}`
+            : `https://console.developers.google.com/apis/api/generativelanguage.googleapis.com/overview`;
+          
+          throw new Error(`Gemini API is disabled. Enable it here: ${enableLink}`);
+      }
+
+      // 3. Quota / Rate Limit
       const isQuotaError = error.status === 429 || 
                            (error.message && (error.message.includes('quota') || error.message.includes('429')));
       
-      // Also retry on syntax errors (JSON parse errors) as they might be due to transient truncation or model glitches
+      // 4. Syntax Error (JSON)
       const isSyntaxError = error instanceof SyntaxError || (error.message && error.message.includes('JSON'));
 
       if ((isQuotaError || isSyntaxError) && i < retries - 1) {
@@ -59,6 +82,7 @@ async function withRetry<T>(operation: () => Promise<T>, retries = 3, initialDel
         delay *= 2; // Exponential backoff
         continue;
       }
+      
       // If it's not a recoverable error, or we ran out of retries, throw immediately
       throw error;
     }
