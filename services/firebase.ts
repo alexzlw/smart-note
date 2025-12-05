@@ -84,9 +84,12 @@ export const firebaseService = {
       // Upload image to storage
       if (item.imageUrl && item.imageUrl.startsWith('data:')) {
           // Keep a copy of the Base64 for DB (AI Analysis fallback)
-          // Only if it's smaller than ~900KB to respect Firestore 1MB limit
+          // Only if it's smaller than ~950KB to respect Firestore 1MB limit
           if (item.imageUrl.length < 950 * 1024) {
               base64Backup = item.imageUrl;
+              console.log("Success: Backup image created for AI analysis.");
+          } else {
+              console.warn(`Warning: Image size (${item.imageUrl.length} bytes) exceeds Firestore limit. AI Analysis backup skipped.`);
           }
 
           try {
@@ -135,11 +138,6 @@ export const firebaseService = {
   updateMistake: async (user: User | null, item: MistakeItem) => {
     if (user) {
       // Cloud Mode
-      // If reflection image changed (is base64), upload it too?
-      // For simplicity, we currently store reflectionImage as base64 string in DB (if small enough)
-      // or we could implement upload logic similar to main image.
-      // Current implementation assumes reflectionImage fits in doc limit or we add logic later.
-      
       const docRef = doc(db, 'users', user.uid, 'mistakes', item.id);
       await setDoc(docRef, item, { merge: true });
     } else {

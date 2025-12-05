@@ -28,9 +28,12 @@ const AddMistakeModal: React.FC<AddMistakeModalProps> = ({ isOpen, onClose, onSa
   // Image Compression Helper
   const compressImage = (file: File): Promise<string> => {
       return new Promise((resolve, reject) => {
-          // Optimized for Blaze Plan: Higher resolution and quality for better AI recognition
-          const maxWidth = 1920; 
-          const quality = 0.85;   
+          // Balanced Setting:
+          // 1600px is high enough for clear text/diagrams.
+          // 0.75 quality keeps file size usually under 900KB.
+          // This ensures the image fits in Firestore (1MB limit) for the AI backup field.
+          const maxWidth = 1600; 
+          const quality = 0.75;   
           const reader = new FileReader();
           
           reader.readAsDataURL(file);
