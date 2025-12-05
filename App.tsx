@@ -64,8 +64,17 @@ const App: React.FC = () => {
   const handleLogin = async () => {
       try {
           await firebaseService.login();
-      } catch (e) {
-          alert("ログインに失敗しました。");
+      } catch (e: any) {
+          console.error("Login Error:", e);
+          if (e.code === 'auth/unauthorized-domain') {
+              alert("設定エラー: 現在のドメインが Firebase で許可されていません。\nFirebase Console > Authentication > Settings > Authorized Domains に以下のドメインを追加してください:\n" + window.location.hostname);
+          } else if (e.code === 'auth/popup-closed-by-user') {
+              // User closed popup, ignore
+          } else if (e.code === 'auth/operation-not-allowed') {
+               alert("設定エラー: Google ログインが無効になっています。\nFirebase Console > Authentication > Sign-in method で Google を有効にしてください。");
+          } else {
+              alert(`ログインに失敗しました: ${e.message}`);
+          }
       }
   };
 
