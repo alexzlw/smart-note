@@ -14,7 +14,9 @@ const getApiKey = () => {
     // @ts-ignore
     return import.meta.env.VITE_API_KEY;
   }
-  return '';
+  
+  // Fallback: Use the hardcoded key from firebase config (as a backup for quick deployment)
+  return "AIzaSyBnZqJXPcGovWkiB2UX_UquydvV3jE8tLM";
 };
 
 // Initialize client lazily to prevent top-level crashes
