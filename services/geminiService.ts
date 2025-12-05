@@ -205,12 +205,12 @@ export const analyzeImage = async (dataUrlOrBase64: string, userHint: string, la
           responseSchema: responseSchema,
           temperature: 0.4,
           maxOutputTokens: 8192,
-          // Explicitly set safety settings to BLOCK_NONE to avoid filtering educational content (e.g. biology, history)
+          // Force safety settings to 'BLOCK_NONE' using string casting to ensure strict overriding of defaults
           safetySettings: [
-             { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
-             { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
-             { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE },
-             { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE },
+             { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: 'BLOCK_NONE' as any },
+             { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: 'BLOCK_NONE' as any },
+             { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: 'BLOCK_NONE' as any },
+             { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: 'BLOCK_NONE' as any },
           ]
         }
       });
@@ -229,7 +229,8 @@ export const analyzeImage = async (dataUrlOrBase64: string, userHint: string, la
       }
       
       console.error("Empty Response", JSON.stringify(response, null, 2));
-      throw new Error("No response text from Gemini. The model might have filtered the content.");
+      const finishReason = response.candidates?.[0]?.finishReason;
+      throw new Error(`No response text from Gemini. Reason: ${finishReason || 'Unknown'}. The model might have filtered the content.`);
     } catch (error) {
       console.error("Gemini Analysis Error:", error);
       throw error;
@@ -267,11 +268,12 @@ export const generateSimilarQuestion = async (originalQuestion: string, original
                     responseMimeType: "application/json",
                     responseSchema: responseSchema,
                     maxOutputTokens: 8192,
+                    // Force safety settings to 'BLOCK_NONE' using string casting
                     safetySettings: [
-                         { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
-                         { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
-                         { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE },
-                         { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE },
+                         { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: 'BLOCK_NONE' as any },
+                         { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: 'BLOCK_NONE' as any },
+                         { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: 'BLOCK_NONE' as any },
+                         { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: 'BLOCK_NONE' as any },
                     ]
                 }
             });
@@ -287,7 +289,9 @@ export const generateSimilarQuestion = async (originalQuestion: string, original
                 }
                 return result;
             }
-            throw new Error("No response text");
+            console.error("Empty Response", JSON.stringify(response, null, 2));
+            const finishReason = response.candidates?.[0]?.finishReason;
+            throw new Error(`No response text from Gemini. Reason: ${finishReason || 'Unknown'}.`);
         } catch (error) {
             console.error("Gemini Generation Error:", error);
             throw error;
