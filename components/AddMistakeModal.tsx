@@ -28,8 +28,9 @@ const AddMistakeModal: React.FC<AddMistakeModalProps> = ({ isOpen, onClose, onSa
   // Image Compression Helper
   const compressImage = (file: File): Promise<string> => {
       return new Promise((resolve, reject) => {
-          const maxWidth = 1280; 
-          const quality = 0.7;   
+          // Optimized for Blaze Plan: Higher resolution and quality for better AI recognition
+          const maxWidth = 1920; 
+          const quality = 0.85;   
           const reader = new FileReader();
           
           reader.readAsDataURL(file);

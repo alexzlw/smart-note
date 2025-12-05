@@ -60,7 +60,16 @@ export const firebaseService = {
     const random = Math.random().toString(36).substring(7);
     const storageRef = ref(storage, `users/${userId}/images/${timestamp}_${random}.jpg`);
     
-    await uploadString(storageRef, dataUrl, 'data_url');
+    // 60s timeout for high quality images
+    const timeoutMs = 60000; 
+    
+    const uploadTask = uploadString(storageRef, dataUrl, 'data_url');
+    
+    const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error("Image upload timed out (60s). Check connection.")), timeoutMs);
+    });
+
+    await Promise.race([uploadTask, timeoutPromise]);
     return await getDownloadURL(storageRef);
   },
 
@@ -75,7 +84,10 @@ export const firebaseService = {
           try {
              finalImageUrl = await firebaseService.uploadImage(user.uid, item.imageUrl);
           } catch(e) {
-              console.error("Image upload failed, falling back to base64", e);
+              console.error("Image upload failed", e);
+              // Since on Blaze, we prefer to fail rather than bloating DB with base64 
+              // (unless you want a fallback, but users usually prefer knowing it failed)
+              throw new Error("Failed to upload image. Please check network.");
           }
       }
 
@@ -125,12 +137,6 @@ export const firebaseService = {
       // Try delete image from storage if it is a cloud URL
       if (imageUrl && imageUrl.includes('firebasestorage')) {
           try {
-              // Extract ref from URL or just try to reconstruct path if possible, 
-              // strictly speaking we need a ref. 
-              // A simple way is to pass the storage Ref, but here we simplify:
-              // We just leave the image orphaned or handle it if we had the path.
-              // For a simple app, orphaned images are okay in free tier.
-              // Or better:
               const imageRef = ref(storage, imageUrl);
               await deleteObject(imageRef);
           } catch(e) {
