@@ -1,11 +1,12 @@
+
 import React, { useState, useRef } from 'react';
-import { Upload, X, ArrowRight, Image as ImageIcon, Check } from 'lucide-react';
+import { Upload, X, ArrowRight, Image as ImageIcon, Check, Loader2 } from 'lucide-react';
 import { Subject, MistakeItem, MasteryLevel } from '../types';
 
 interface AddMistakeModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (item: MistakeItem) => void;
+  onSave: (item: MistakeItem) => Promise<void>;
 }
 
 const AddMistakeModal: React.FC<AddMistakeModalProps> = ({ isOpen, onClose, onSave }) => {
@@ -13,54 +14,100 @@ const AddMistakeModal: React.FC<AddMistakeModalProps> = ({ isOpen, onClose, onSa
   const [selectedSubject, setSelectedSubject] = useState<Subject>(Subject.SANSU);
   const [userNote, setUserNote] = useState('');
   const [userCorrectAnswer, setUserCorrectAnswer] = useState('');
+  const [isCompressing, setIsCompressing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   if (!isOpen) return null;
 
   // Validation
-  const isValid = selectedImage && userCorrectAnswer.trim().length > 0;
+  const isValid = selectedImage && userCorrectAnswer.trim().length > 0 && !isCompressing && !isSaving;
+
+  // Image Compression Helper
+  const compressImage = (file: File): Promise<string> => {
+      return new Promise((resolve, reject) => {
+          const maxWidth = 1280; // Enough for reading text, saves huge space
+          const quality = 0.7;   // Good balance
+          const reader = new FileReader();
+          
+          reader.readAsDataURL(file);
+          reader.onload = (event) => {
+              const img = new Image();
+              img.src = event.target?.result as string;
+              img.onload = () => {
+                  const canvas = document.createElement('canvas');
+                  let width = img.width;
+                  let height = img.height;
+
+                  if (width > maxWidth) {
+                      height = Math.round((height * maxWidth) / width);
+                      width = maxWidth;
+                  }
+
+                  canvas.width = width;
+                  canvas.height = height;
+                  const ctx = canvas.getContext('2d');
+                  if (!ctx) {
+                      reject("Canvas context error");
+                      return;
+                  }
+                  ctx.drawImage(img, 0, 0, width, height);
+                  
+                  // Convert to Base64 (JPEG)
+                  const dataUrl = canvas.toDataURL('image/jpeg', quality);
+                  resolve(dataUrl);
+              };
+              img.onerror = (err) => reject(err);
+          };
+          reader.onerror = (err) => reject(err);
+      });
+  };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
+      setIsCompressing(true);
       try {
-        // We read the file as a Data URL. This format allows us to:
-        // 1. Display it easily in an <img> tag (src="data:image...")
-        // 2. Store it in IndexedDB
-        // 3. Send it to Gemini (after stripping the prefix in the service layer)
-        const reader = new FileReader();
-        reader.onload = (ev) => {
-            setSelectedImage(ev.target?.result as string);
-        }
-        reader.readAsDataURL(file);
+        const compressedDataUrl = await compressImage(file);
+        setSelectedImage(compressedDataUrl);
       } catch (error) {
-        console.error("Error processing image", error);
-        alert("画像の読み込みに失敗しました。");
+        console.error("Error compressing image", error);
+        alert("画像の処理に失敗しました。");
+      } finally {
+        setIsCompressing(false);
       }
     }
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!isValid) return;
+    setIsSaving(true);
 
-    const newItem: MistakeItem = {
-      id: crypto.randomUUID(),
-      createdAt: Date.now(),
-      imageUrl: selectedImage!, // Asserted by isValid
-      questionText: userNote || "画像のみ (未解析)", // Default placeholder
-      userNotes: userNote,
-      userCorrectAnswer: userCorrectAnswer,
-      reflection: "", // Initialize reflection
-      aiSolution: "",
-      aiAnalysis: "",
-      tags: [],
-      subject: selectedSubject,
-      mastery: MasteryLevel.NEW,
-      reviewCount: 0
-    };
-    
-    onSave(newItem);
-    resetModal();
+    try {
+        const newItem: MistakeItem = {
+            id: crypto.randomUUID(),
+            createdAt: Date.now(),
+            imageUrl: selectedImage!, // Asserted by isValid
+            questionText: userNote || "画像のみ (未解析)", // Default placeholder
+            userNotes: userNote,
+            userCorrectAnswer: userCorrectAnswer,
+            reflection: "", // Initialize reflection
+            aiSolution: "",
+            aiAnalysis: "",
+            tags: [],
+            subject: selectedSubject,
+            mastery: MasteryLevel.NEW,
+            reviewCount: 0
+        };
+        
+        await onSave(newItem); 
+        resetModal();
+    } catch (e) {
+        console.error(e);
+        alert("保存中にエラーが発生しました。");
+    } finally {
+        setIsSaving(false);
+    }
   };
 
   const resetModal = () => {
@@ -68,6 +115,7 @@ const AddMistakeModal: React.FC<AddMistakeModalProps> = ({ isOpen, onClose, onSa
     setUserNote('');
     setUserCorrectAnswer('');
     setSelectedSubject(Subject.SANSU);
+    setIsSaving(false);
     onClose();
   };
 
@@ -90,35 +138,45 @@ const AddMistakeModal: React.FC<AddMistakeModalProps> = ({ isOpen, onClose, onSa
           
           {!selectedImage ? (
             <div className="flex flex-col items-center justify-center h-[300px]">
-                <div 
-                    className="group w-full h-full border-3 border-dashed border-indigo-200 rounded-3xl bg-indigo-50/30 hover:bg-indigo-50 hover:border-indigo-400 transition-all cursor-pointer flex flex-col items-center justify-center relative overflow-hidden"
-                    onClick={() => fileInputRef.current?.click()}
-                >
-                    <input 
-                        type="file" 
-                        ref={fileInputRef} 
-                        className="hidden" 
-                        accept="image/*" 
-                        onChange={handleFileChange}
-                    />
-                    
-                    <div className="bg-white p-5 rounded-2xl shadow-lg shadow-indigo-100 mb-6 group-hover:scale-110 transition-transform duration-300">
-                        <Upload className="text-indigo-600" size={40} />
+                {isCompressing ? (
+                    <div className="flex flex-col items-center gap-3">
+                        <Loader2 className="animate-spin text-indigo-500" size={40} />
+                        <p className="text-slate-500 font-medium">画像を最適化中...</p>
                     </div>
-                    <p className="text-slate-700 font-bold text-xl mb-2">写真をアップロード</p>
-                    <p className="text-slate-500 text-sm">クリックまたはドラッグ＆ドロップ</p>
-                </div>
+                ) : (
+                    <div 
+                        className="group w-full h-full border-3 border-dashed border-indigo-200 rounded-3xl bg-indigo-50/30 hover:bg-indigo-50 hover:border-indigo-400 transition-all cursor-pointer flex flex-col items-center justify-center relative overflow-hidden"
+                        onClick={() => fileInputRef.current?.click()}
+                    >
+                        <input 
+                            type="file" 
+                            ref={fileInputRef} 
+                            className="hidden" 
+                            accept="image/*" 
+                            onChange={handleFileChange}
+                        />
+                        
+                        <div className="bg-white p-5 rounded-2xl shadow-lg shadow-indigo-100 mb-6 group-hover:scale-110 transition-transform duration-300">
+                            <Upload className="text-indigo-600" size={40} />
+                        </div>
+                        <p className="text-slate-700 font-bold text-xl mb-2">写真をアップロード</p>
+                        <p className="text-slate-500 text-sm">クリックまたはドラッグ＆ドロップ</p>
+                    </div>
+                )}
             </div>
           ) : (
             <div className="space-y-6">
-                <div className="relative rounded-2xl overflow-hidden shadow-sm border border-slate-200 bg-white">
+                <div className="relative rounded-2xl overflow-hidden shadow-sm border border-slate-200 bg-white group">
                     <img src={selectedImage} alt="Preview" className="w-full h-64 object-contain bg-slate-50" />
-                    <button 
-                        onClick={() => setSelectedImage(null)}
-                        className="absolute top-2 right-2 bg-black/50 hover:bg-black/70 text-white p-1.5 rounded-full backdrop-blur-sm transition-colors"
-                    >
-                        <X size={16} />
-                    </button>
+                    <div className="absolute top-2 right-2 flex gap-2">
+                        <button 
+                            onClick={() => setSelectedImage(null)}
+                            className="bg-black/50 hover:bg-black/70 text-white p-2 rounded-full backdrop-blur-sm transition-colors"
+                            title="削除"
+                        >
+                            <X size={16} />
+                        </button>
+                    </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -146,7 +204,7 @@ const AddMistakeModal: React.FC<AddMistakeModalProps> = ({ isOpen, onClose, onSa
                     </div>
                 </div>
 
-                {/* New Correct Answer Field (Mandatory) */}
+                {/* Correct Answer Field (Mandatory) */}
                 <div>
                     <div className="flex justify-between items-center mb-2">
                         <label className="block text-sm font-bold text-slate-700">正解 (必須)</label>
@@ -174,16 +232,21 @@ const AddMistakeModal: React.FC<AddMistakeModalProps> = ({ isOpen, onClose, onSa
         <div className="p-6 border-t border-slate-100 bg-white flex justify-end items-center gap-3 shrink-0">
             <button 
                 onClick={resetModal}
-                className="px-6 py-3 text-slate-500 hover:text-slate-800 font-medium transition-colors"
+                disabled={isSaving}
+                className="px-6 py-3 text-slate-500 hover:text-slate-800 font-medium transition-colors disabled:opacity-50"
             >
                 キャンセル
             </button>
             <button 
                 onClick={handleSave}
-                disabled={!isValid}
+                disabled={!isValid || isSaving}
                 className="px-8 py-3 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 disabled:text-slate-500 disabled:cursor-not-allowed text-white rounded-xl font-bold shadow-lg shadow-indigo-200 flex items-center gap-2 transform active:scale-95 transition-all"
             >
-                保存する <Check size={18} />
+                {isSaving ? (
+                    <><Loader2 size={18} className="animate-spin" /> 保存中...</>
+                ) : (
+                    <>保存する <Check size={18} /></>
+                )}
             </button>
         </div>
       </div>
