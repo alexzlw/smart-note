@@ -121,8 +121,8 @@ async function urlToData(url: string): Promise<{ mimeType: string, base64Data: s
 }
 
 export const analyzeImage = async (dataUrlOrBase64: string, userHint: string, language: Language = 'ja', customInstructions: string = ''): Promise<AIAnalysisResult> => {
-  // Use the standard model
-  const modelId = "gemini-2.5-flash"; 
+  // Use stable model to prevent MAX_TOKENS and Empty Response errors
+  const modelId = "gemini-1.5-flash"; 
   const ai = getAI();
   
   let mimeType = 'image/jpeg';
@@ -198,9 +198,7 @@ export const analyzeImage = async (dataUrlOrBase64: string, userHint: string, la
           responseSchema: responseSchema,
           temperature: 0.4,
           maxOutputTokens: 8192,
-          // Disable thinking budget to prevent MAX_TOKENS error on simple tasks
-          thinkingConfig: { thinkingBudget: 0 },
-          // Use string literals strictly for safety settings
+          // Removed thinkingConfig as it is not supported on 1.5-flash
           safetySettings: [
              { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
              { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
@@ -233,7 +231,7 @@ export const analyzeImage = async (dataUrlOrBase64: string, userHint: string, la
 };
 
 export const generateSimilarQuestion = async (originalQuestion: string, originalAnalysis: string, language: Language = 'ja'): Promise<AISimilarQuestionResult> => {
-    const modelId = "gemini-2.5-flash"; 
+    const modelId = "gemini-1.5-flash"; 
     const ai = getAI();
 
     const langName = language === 'en' ? 'English' : language === 'zh' ? 'Chinese (Simplified)' : 'Japanese';
@@ -262,7 +260,6 @@ export const generateSimilarQuestion = async (originalQuestion: string, original
                     responseMimeType: "application/json",
                     responseSchema: responseSchema,
                     maxOutputTokens: 8192,
-                    thinkingConfig: { thinkingBudget: 0 },
                     safetySettings: [
                         { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
                         { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
