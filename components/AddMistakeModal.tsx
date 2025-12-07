@@ -39,45 +39,60 @@ const AddMistakeModal: React.FC<AddMistakeModalProps> = ({ isOpen, onClose, onSa
           reader.onload = (event) => {
               const img = new Image();
               img.src = event.target?.result as string;
+              
               img.onload = () => {
-                  const canvas = document.createElement('canvas');
-                  let width = img.width;
-                  let height = img.height;
+                  try {
+                    const canvas = document.createElement('canvas');
+                    let width = img.width;
+                    let height = img.height;
 
-                  if (width > maxWidth) {
-                      height = Math.round((height * maxWidth) / width);
-                      width = maxWidth;
-                  }
+                    if (width > maxWidth) {
+                        height = Math.round((height * maxWidth) / width);
+                        width = maxWidth;
+                    }
 
-                  canvas.width = width;
-                  canvas.height = height;
-                  const ctx = canvas.getContext('2d');
-                  if (!ctx) {
-                      reject("Canvas context error");
-                      return;
+                    canvas.width = width;
+                    canvas.height = height;
+                    const ctx = canvas.getContext('2d');
+                    if (!ctx) {
+                        reject(new Error("Canvas context error"));
+                        return;
+                    }
+                    ctx.drawImage(img, 0, 0, width, height);
+                    
+                    // Convert to Base64 (JPEG)
+                    const dataUrl = canvas.toDataURL('image/jpeg', quality);
+                    resolve(dataUrl);
+                  } catch (err) {
+                    reject(new Error("Image processing failed during drawing."));
                   }
-                  ctx.drawImage(img, 0, 0, width, height);
-                  
-                  // Convert to Base64 (JPEG)
-                  const dataUrl = canvas.toDataURL('image/jpeg', quality);
-                  resolve(dataUrl);
               };
-              img.onerror = (err) => reject(err);
+              
+              img.onerror = () => reject(new Error("Failed to decode image. File might be corrupt or unsupported format."));
           };
-          reader.onerror = (err) => reject(err);
+          reader.onerror = () => reject(new Error("Failed to read file data."));
       });
   };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
+      
+      // Strict Type Check
+      if (!file.type.startsWith('image/')) {
+          alert(t('save_error', language) + " (Invalid file type. Please select an image.)");
+          return;
+      }
+
       setIsCompressing(true);
       try {
         const compressedDataUrl = await compressImage(file);
         setSelectedImage(compressedDataUrl);
-      } catch (error) {
+      } catch (error: any) {
         console.error("Error compressing image", error);
-        alert("Image processing failed.");
+        alert(`Image Error: ${error.message || "Unknown error"}`);
+        // Clear input to allow retrying same file if needed
+        if (fileInputRef.current) fileInputRef.current.value = '';
       } finally {
         setIsCompressing(false);
       }
@@ -157,7 +172,7 @@ const AddMistakeModal: React.FC<AddMistakeModalProps> = ({ isOpen, onClose, onSa
                             type="file" 
                             ref={fileInputRef} 
                             className="hidden" 
-                            accept="image/*" 
+                            accept="image/jpeg,image/png,image/webp" 
                             onChange={handleFileChange}
                         />
                         
